@@ -107,7 +107,16 @@ function noticeCard(item) {
     </div>
     <span class="badge ${verdict}">${verdict}</span>`;
 
+  // 공고를 고르는 것이 이 화면의 유일한 동작인데 div 에 click 만 달려 있어서
+  // 키보드로는 아무 공고도 열 수 없었다. 마우스 없이도 목록을 훑을 수 있어야 한다.
+  card.tabIndex = 0;
+  card.setAttribute("role", "button");
   card.addEventListener("click", () => openNotice(item));
+  card.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();          // Space 가 페이지를 스크롤하지 않게
+    openNotice(item);
+  });
   return card;
 }
 
