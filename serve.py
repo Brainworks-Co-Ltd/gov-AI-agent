@@ -32,7 +32,11 @@ try:
 except (AttributeError, ValueError):
     pass
 
-PORT = 8000
+# 배포 플랫폼(Render 등)은 $PORT 로 포트를 지정하고 0.0.0.0 바인딩을 요구한다.
+# 환경변수가 없으면 예전처럼 8000번 루프백으로만 뜬다 — 로컬에서 이 PC 밖으로
+# 열리는 일이 없어야 하기 때문이다.
+PORT = int(os.environ.get("PORT", 8000))
+_HOSTED = "PORT" in os.environ
 _WEB_DIR = os.path.join(os.path.dirname(__file__), "web")
 # web/ 폴더 안의 파일만 정적으로 내보낸다 (그 외 경로는 파일시스템에 접근하지 않음).
 _STATIC_TYPES = {".html": "text/html; charset=utf-8",
@@ -346,8 +350,18 @@ class _IPv6Server(_Server):
     address_family = socket.AF_INET6
 
 
+class _HostedServer(ThreadingHTTPServer):
+    """배포 환경(0.0.0.0)용 서버.
+
+    여기서는 allow_reuse_address 를 켜 둔다. 로컬에서 끄는 이유(같은 포트에 두 번째
+    인스턴스가 조용히 붙는 사고)는 컨테이너에 없고, 반대로 재배포 직후 이전 소켓이
+    TIME_WAIT 에 남아 바인딩이 실패하는 쪽이 실제 위험이다.
+    """
+    allow_reuse_address = True
+
+
 def _start_servers() -> list[ThreadingHTTPServer]:
-    """IPv4(127.0.0.1)와 IPv6(::1) **양쪽**에 서버를 띄운다.
+    """로컬은 IPv4(127.0.0.1)·IPv6(::1) 양쪽, 배포 환경은 0.0.0.0 하나에 띄운다.
 
     윈도우에서 브라우저에 http://localhost:8000 을 치면 `localhost`가 IPv6 `::1`로
     먼저 해석된다. 127.0.0.1에만 붙여 두면 그 시도가 연결 거부로 끝나서, 서버는
@@ -356,8 +370,10 @@ def _start_servers() -> list[ThreadingHTTPServer]:
     두 주소에 각각 붙이고, 둘 다 루프백이라 이 PC 밖에서는 접속할 수 없다.
     한쪽 바인딩이 실패해도(IPv6가 꺼져 있는 환경 등) 나머지 하나로 계속 동작한다.
     """
+    targets = (((_HostedServer, "0.0.0.0"),) if _HOSTED
+               else ((_Server, "127.0.0.1"), (_IPv6Server, "::1")))
     servers: list[ThreadingHTTPServer] = []
-    for cls, host in ((_Server, "127.0.0.1"), (_IPv6Server, "::1")):
+    for cls, host in targets:
         try:
             servers.append(cls((host, PORT), Handler))
         except OSError as e:
@@ -387,9 +403,12 @@ def main() -> None:
     if not servers:
         return
 
-    print(f"  브라우저에서 아래 주소를 여세요. (종료: Ctrl+C)")
-    print(f"     http://localhost:{PORT}")
-    print(f"     http://127.0.0.1:{PORT}   (localhost 가 안 열릴 때)\n")
+    if _HOSTED:
+        print(f"  0.0.0.0:{PORT} 에서 대기 중입니다.\n")
+    else:
+        print(f"  브라우저에서 아래 주소를 여세요. (종료: Ctrl+C)")
+        print(f"     http://localhost:{PORT}")
+        print(f"     http://127.0.0.1:{PORT}   (localhost 가 안 열릴 때)\n")
 
     # 첫 서버는 이 스레드에서 돌리고, 나머지는 배경 스레드에 맡긴다.
     for extra in servers[1:]:
