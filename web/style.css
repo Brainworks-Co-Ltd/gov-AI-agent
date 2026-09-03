@@ -265,6 +265,16 @@ main { padding: 24px 28px 60px; max-width: 1240px; }
   cursor: pointer; box-shadow: var(--shadow-card); transition: border-color .12s, color .12s;
 }
 .toolbar label[for]:hover { border-color: var(--border-hover); color: var(--foreground); }
+/* hidden 으로 감추면 display:none 이라 인풋이 포커스를 못 받고, label 은 원래
+   포커스 대상이 아니다. 그래서 파일을 고를 키보드 경로가 아예 없었다.
+   화면에서만 지우고 포커스는 살린 뒤, 링을 옆 label 에 옮겨 그린다. */
+.toolbar input[type=file] {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.toolbar input[type=file]:focus-visible + label[for] {
+  outline: 2px solid var(--ring); outline-offset: 2px;
+}
 /* 툴바는 세 덩이다 — 데이터를 바꾸는 버튼 · 목록을 좁히는 검색/필터 ·
    결과를 다루는 정렬과 집계. 검색칸이 이미 테두리를 가지고 있어 세로선을 덧대면
    선이 겹쳐 보이므로, 경계는 간격으로만 낸다. */
