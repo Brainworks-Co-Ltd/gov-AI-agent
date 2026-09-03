@@ -293,6 +293,18 @@ function setRefreshButtons(running) {
   $("btn-judge-all").disabled = running;
 }
 
+/* 오래 걸리는 일이 끝났을 때만 부른다. 진행 상황은 #ingest-log 가 계속 맡는다 —
+   토스트는 5초 뒤 사라지므로 "283/682건" 같은 진행률을 담을 자리가 아니다. */
+function toast(text, ok) {
+  const el = document.createElement("div");
+  el.className = ok === false ? "box err" : "box";
+  el.innerHTML =
+    `<svg class="i" aria-hidden="true"><use href="#i-${ok === false ? "circle-alert" : "circle-check"}"/></svg>` +
+    `<div>${escapeHtml(text)}</div>`;
+  $("toasts").appendChild(el);
+  setTimeout(() => el.remove(), 5000);
+}
+
 function refreshMessage(status) {
   if (status.state === "running") {
     if (status.phase === "collecting") {
@@ -329,6 +341,13 @@ async function pollRefresh() {
     if (observedRefresh) {
       observedRefresh = false;
       $("ingest-log").textContent = refreshMessage(status);
+      // 긴 요약은 화면에 남기고, 토스트에는 결과 한 줄만 띄운다.
+      if (status.state === "failed") {
+        toast("갱신 실패 — " + ((status.errors || [])[0] || "원인을 확인하지 못했습니다."), false);
+      } else {
+        toast(`갱신 완료 — 새로 ${status.refreshed || 0}건 · 기존 ${status.cached || 0}건`
+              + (status.failed ? ` · 실패 ${status.failed}건` : ""));
+      }
       await loadNotices();
     }
   } catch (e) {
@@ -371,6 +390,7 @@ async function startRefresh(path) {
   } catch (e) {
     setRefreshButtons(false);
     $("ingest-log").textContent = "갱신 요청 실패 — " + e.message;
+    toast("갱신 요청 실패 — " + e.message, false);
   }
 }
 
@@ -622,9 +642,14 @@ async function openDraft(refresh, sections) {
         return;
       }
     }
-    renderDraft(await post(noticeUrl(current.id, "draft"), { refresh, sections }));
+    // 초안은 항목마다 따로 써 내려가 30초~1분이 걸린다. 그동안 담당자가 다른 탭을
+    // 보고 있을 수 있어, 끝났다는 사실을 화면 밖에서도 알려 준다.
+    const made = await post(noticeUrl(current.id, "draft"), { refresh, sections });
+    renderDraft(made);
+    toast(`초안을 다 썼습니다 — ${(made.sections || []).length}개 항목`);
   } catch (e) {
     $("d-sections").innerHTML = `<p class="empty">초안 생성 실패 — ${escapeHtml(e.message)}</p>`;
+    toast("초안 생성 실패 — " + e.message, false);
   }
 }
 
