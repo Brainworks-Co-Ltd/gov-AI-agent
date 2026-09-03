@@ -47,7 +47,9 @@
   --ok-bg: #e9f9ee;   --ok-fg: #193b2d;   --ok-border: #b4dfc4;   --ok-solid: #30a46c;
   --no-bg: #ffefef;   --no-fg: #641723;   --no-border: #f9c6c6;   --no-solid: #e5484d;
   --chk-bg: #fff7c2;  --chk-fg: #4f3422;  --chk-border: #e9c162;  --chk-solid: #ffc53d;
-  --pending-bg: #eceef2; --pending-fg: #4d5783; --pending-border: #dcdfe6;
+  /* 미판정만 무채색이라 색상 차이로 버티지 못한다. 테두리를 뺀 뒤 페이지(#f3f4f7)에
+     묻혀서 면을 한 단 내렸다 — 대비 1.06 → 1.18, 글자는 5.40 으로 AA 유지. */
+  --pending-bg: #e0e2e9; --pending-fg: #4d5783; --pending-border: #dcdfe6;
 
   --card-foreground: var(--foreground);
   --primary-foreground: #ffffff;      /* primary 위 5.45:1 */
@@ -128,15 +130,20 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
 }
 
 /* 판정 배지. 한글 modifier 는 백엔드 값이라 이름을 바꾸지 않는다. */
+/* TailGrids Badge — Duo Tone / Full Round (Figma 310:11467) 의 기하를 그대로 쓴다.
+   padding 3/10 · radius pill · 12px/500 · line-height 20px · **테두리 없음**.
+   테두리 1px 이 파스텔 면을 한 번 더 두르고 있어 배지가 무거워 보였다.
+   색은 키트 값을 쓰지 않는다 — TailGrids 원본은 Success 4.29:1, Danger 4.28:1 로
+   AA(4.5) 미달이다. 우리 §3 값은 10~11:1 이라 그대로 둔다. */
 .badge {
-  display: inline-block; padding: 4px 10px; border-radius: var(--radius-pill);
-  font-size: 12px; font-weight: 600; white-space: nowrap; letter-spacing: .02em;
-  border: 1px solid transparent;
+  display: inline-block; padding: 3px 10px; border-radius: var(--radius-pill);
+  font-size: 12px; font-weight: 500; line-height: 20px; white-space: nowrap;
+  border: 0;
 }
-.badge.가능     { background: var(--ok-bg);      color: var(--ok-fg);      border-color: var(--ok-border); }
-.badge.불가     { background: var(--no-bg);      color: var(--no-fg);      border-color: var(--no-border); }
-.badge.확인필요  { background: var(--chk-bg);     color: var(--chk-fg);     border-color: var(--chk-border); }
-.badge.미판정    { background: var(--pending-bg); color: var(--pending-fg); border-color: var(--pending-border); }
+.badge.가능     { background: var(--ok-bg);      color: var(--ok-fg); }
+.badge.불가     { background: var(--no-bg);      color: var(--no-fg); }
+.badge.확인필요  { background: var(--chk-bg);     color: var(--chk-fg); }
+.badge.미판정    { background: var(--pending-bg); color: var(--pending-fg); }
 
 /* 카드 — 페이지보다 밝은 순백이라야 떠 보인다. */
 /* 테두리를 걷었다. 1px 선으로 둘러싼 카드는 와이어프레임처럼 읽힌다 — 흰 면이
