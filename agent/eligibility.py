@@ -579,7 +579,11 @@ def _effective_axis(req: Requirement) -> str:
     신호가 없으면 '기타'로 낮춰서, 최소한 정직한 이유가 나가게 한다.
     """
     text = f"{req.value} {req.quote}"
-    if req.axis == AXIS_REGION and not _regions_in(text):
+    # 지역 판정기는 시·도가 없으면 시·군·구로도 판정한다("원주센터 관할(원주시·
+    # 횡성군·영월군) 소재"). 여기서 시·도만 보고 강등하면 바로 그 경우를 걸러내
+    # 버려서, 광주 기업에게 '원주시 소재' 요건이 불가가 아니라 "프로필에 대응하는
+    # 항목이 없어 확인 필요"로 나왔다. 판정기가 볼 수 있는 신호는 여기서도 본다.
+    if req.axis == AXIS_REGION and not _regions_in(text) and not _districts_in(text):
         return AXIS_ETC
     if req.axis == AXIS_YEARS and not _bounds(text) and "년" not in text:
         return AXIS_ETC
