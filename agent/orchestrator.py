@@ -18,7 +18,34 @@ from dataclasses import replace
 from agent import checker, drafter, eligibility, formspec
 from agent.schemas import (CheckIssue, CompanyProfile, Draft, DraftSection,
                            EligibilityReport, Notice, Requirement, RequirementVerdict)
+from agent.structure import NoticeStructurer, NoticeExtraction, StructuringError
 from tools import profile_store, store
+
+
+def structure_notice(text: str, *,
+                     pages: list[dict] | None = None,
+                     apply_rules: bool = True,
+                     refine: bool = False) -> dict:
+    """공고문 텍스트를 구조화된 필드(사업명, 평가, 유의사항 등)로 변환한다.
+
+    `응아/golden_set_prompt/structure/`의 프롬프트를 그대로 쓰되,
+    LLM 호출은 tools/hyperclova_api 래퍼를 통해 이루어진다.
+
+    반환: NoticeExtraction을 dict(by_alias)로 직렬화한 결과.
+    예시 키: 사업명, 주관기관, 신청기간, 지원대상, 신청제외대상_항목,
+            지원금액, 기업 부담금, 제출 서류, 평가, 평가 비고, 유의 사항
+
+    pages: 페이지 단위 구조([{"page_number": int, "text": str, "tables": list}]).
+           긴 문서의 2단계(위치 탐색 → 본문 추출) 호출에 사용한다.
+           없으면 text를 통째로 넘긴다.
+    apply_rules: 결정적 후처리(요일 제거, 항목 분리 등) 적용 여부.
+    refine: 지원대상·신청제외대상을 필드 단위로 다시 뽑아 보강할지 여부.
+    """
+    structurer = NoticeStructurer()
+    extraction = structurer.structure_document(
+        text, pages=pages, apply_rules=apply_rules, refine=refine,
+    )
+    return extraction.model_dump(by_alias=True)
 
 
 def _cluster_siblings(conn: sqlite3.Connection, notice: Notice) -> list[Notice]:
