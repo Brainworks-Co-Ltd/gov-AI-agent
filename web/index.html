@@ -212,11 +212,20 @@
 
           <div class="box">
             <h3>말로 고치기</h3>
-            <p class="hint">고칠 곳을 말로 알려 주면 그 항목만 다시 씁니다.<br>
-               예) “기대효과에 숫자 목표를 넣어 줘”, “추진 계획을 단계별로”</p>
+            <p class="hint">고칠 항목을 고르고 어떻게 고칠지 적으세요.
+               ‘자동’으로 두면 적은 내용에서 항목을 찾습니다.<br>
+               예) “숫자 목표를 넣어 줘”, “단계별로 나눠 줘”, “문장을 짧게”</p>
             <div id="chat-log" class="chat-log">
               <p class="empty small">무엇을 고칠지 적어 보세요.</p>
             </div>
+            <!-- 고칠 항목을 먼저 고르게 한다. 말로만 지정하면 "추진 배경을 길게"
+                 처럼 항목 이름을 정확히 불러야 하는데, 그걸 화면이 안 알려 준다. -->
+            <label class="chat-pick" for="chat-target">고칠 항목
+              <select id="chat-target">
+                <option value="">자동 — 말한 내용으로 판단</option>
+                <option value="*">전체 항목</option>
+              </select>
+            </label>
             <div class="chat-input">
               <textarea id="chat-text" rows="2"
                         placeholder="예) 기대효과가 두루뭉술해. 무엇이 얼마나 좋아지는지 넣어 줘"></textarea>

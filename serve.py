@@ -347,7 +347,8 @@ class Handler(BaseHTTPRequestHandler):
                         notice, profile_store.load(), sections,
                         str(body.get("message") or ""),
                         history=body.get("history") or [],
-                        notice_text=spec.get("notice_text", ""))
+                        notice_text=spec.get("notice_text", ""),
+                        target=str(body.get("target") or ""))
                     # 고친 결과를 저장해 둔다. 화면을 닫았다 열어도 남아 있어야 한다.
                     if result.get("changed"):
                         orchestrator.save_edited_draft(conn, notice, result["sections"],

@@ -493,6 +493,7 @@ function renderDraft(draft) {
     ? `서식에서 값만 채우면 되는 칸: ` +
       fields.map((f) => `<span class="chip">${escapeHtml(f)}</span>`).join(" ")
     : "";
+  fillChatTargets(draft.sections);
   $("d-sections").innerHTML = draft.sections.map((s, i) => `
     <div class="section">
       <h4>${escapeHtml(s.title)}</h4>
@@ -500,6 +501,17 @@ function renderDraft(draft) {
         ? "참고: " + escapeHtml(s.sources.join(", ")) : "참고한 과거 신청서 없음"}</div>
       <textarea data-index="${i}">${escapeHtml(s.body)}</textarea>
     </div>`).join("");
+}
+
+/* 고칠 항목 목록을 실제 초안에 맞춘다. 항목 이름은 공고 서식에서 오므로
+   공고마다 다르다 — 고정 목록을 둘 수 없다. */
+function fillChatTargets(sections) {
+  const sel = $("chat-target");
+  const keep = sel.value;
+  sel.innerHTML = `<option value="">자동 — 말한 내용으로 판단</option>
+    <option value="*">전체 항목</option>` +
+    sections.map((s) => `<option>${escapeHtml(s.title)}</option>`).join("");
+  sel.value = [...sel.options].some((o) => o.value === keep) ? keep : "";
 }
 
 // 담당자가 화면에서 고친 내용을 그대로 모아 점검·복사에 쓴다.
@@ -644,6 +656,7 @@ async function sendChat() {
   try {
     const result = await post(noticeUrl(current.id, "chat"), {
       message,
+      target: $("chat-target").value,
       sections: collectDraft().sections,
       history: chatHistory.slice(-6),
     });
