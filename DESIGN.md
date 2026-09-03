@@ -246,36 +246,25 @@ Radix 관례대로 gray-1 을 카드에 쓰면 **카드가 페이지보다 어�
 
 | | 항목 |
 |---|---|
-| 0 | **§2 의 shadcn 토큰 이름이 아직 `style.css` 에 없다.** 아래 별도 설명 |
 | 1 | **타이포 10종 → 6단, 여백 12종 → 6단, radius 생값 7곳** 정리 미반영 (§4, §5) |
 | 2 | green·red·amber 가 Radix 기본 스케일 — 이 background 에 맞춘 커스텀 생성 미적용 (§3) |
 | 3 | 반응형 브레이크포인트 미정의 — 현재 `@media (max-width: 900px)` 한 개뿐. 발표가 단일 뷰포트라 우선순위 밖 |
 | 4 | 다크 모드 없음. 계획 없음 |
 | 5 | `.badge` pill 의 `999px` 이 토큰 아님 |
 
-### 미결 0 — 토큰 이름이 아직 안 맞다 (읽기 전 필독)
+### shadcn 규약 밖의 확장 토큰
 
-**§2 는 목표 상태다.** `web/style.css` 는 아직 자체 이름을 쓴다.
+§2 는 `web/style.css` 와 **이름까지 일치한다**. 다만 shadcn 표준에 없는 토큰 4개를
+확장으로 둔다:
 
-| §2 (shadcn) | 현재 `style.css` |
-|---|---|
-| `--background` | `--bg` |
-| `--foreground` | `--text-title` |
-| `--card` | `--panel` |
-| `--primary` | **`--accent`** |
-| `--primary-foreground` | (없음 — `#fff` 직접) |
-| `--muted-foreground` | `--text` |
-| `--accent` | **`--accent-selected`** |
-| `--accent-foreground` | `--accent-text` |
-| `--border` | `--line` |
-| `--ring` | `--focus-ring` |
-| `--secondary` | (없음) |
+| 토큰 | 값 | 이유 |
+|---|---|---|
+| `--border-subtle` | gray-4 `#d6ddf6` | 헤더·탭 하단처럼 카드 테두리보다 옅어야 하는 구분선 |
+| `--border-hover` | gray-8 `#9eace8` | 버튼 hover 테두리 |
+| `--primary-hover` | blue-11 `#3749c5` | primary hover |
+| `--radius-xs` / `--radius-pill` | 6px / 999px | 작은 배지·칩, pill 배지 |
 
-⚠️ **`--accent` 는 양쪽에 다 있고 뜻이 반대다.** `style.css` 의 `--accent` 는
-`#445ae6`(솔리드 파랑, shadcn 의 `--primary`)이고, §2 의 `--accent` 는 `#e3e8f5`
-(blue-3, 선택·hover 표면)다. **§2 를 보고 `var(--accent)` 를 쓰면 의도와 정반대 색이
-나온다.** 이름을 정렬하기 전까지는 §2 를 값 사전이 아니라 **의도 사전**으로 읽고,
-실제 변수명은 위 표 오른쪽 열을 쓸 것.
-
-정렬 작업은 `style.css` 안에서만 끝난다 — 클래스명이 안 바뀌므로 `index.html`·`app.js`
-는 건드리지 않는다. 검증은 §6-2 의 색 리터럴 스캔 + 4개 탭 수동 클릭.
+**텍스트 계층은 2단이다.** `--foreground`(gray-12) 와 `--muted-foreground`(gray-11).
+3단째로 gray-10(`#6874a9`)을 쓰던 시기가 있었으나 **background 위 4.21:1, muted 면 위
+3.96:1 로 AA 미달**이라 폐기했다. 세 번째 위계가 필요하면 **색이 아니라 크기·굵기로**
+구분한다 (메타 텍스트는 이미 11~12px, 본문은 13px).
