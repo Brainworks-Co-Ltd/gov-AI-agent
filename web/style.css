@@ -89,7 +89,9 @@ button {
   box-shadow: var(--shadow-card); transition: border-color .12s, background .12s, color .12s;
 }
 button:hover { border-color: var(--border-hover); color: var(--foreground); }
-button.primary { background: var(--primary); color: var(--card); border-color: var(--primary); }
+/* --card 는 면 토큰이다. 지금은 둘 다 #ffffff 라 티가 안 나지만 카드 색을
+   조금만 틀면 모든 primary 버튼이 글자를 잃는다. 짝 토큰을 쓴다 (DESIGN.md 2). */
+button.primary { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
 button.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
 button:disabled { opacity: .55; cursor: default; box-shadow: none; }
 
