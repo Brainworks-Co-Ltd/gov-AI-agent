@@ -224,6 +224,33 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
 @keyframes toast-in { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { .toasts .box { animation: none; } }
 
+/* 진행 막대. 갱신은 수백 건을 도는 일이라 "283/682건" 숫자만으로는 얼마나
+   남았는지 감이 안 온다. 브라우저마다 의사 요소가 달라 셋 다 칠한다. */
+.bar {
+  display: block; width: 100%; max-width: 420px; height: 6px; margin: 0 0 10px;
+  appearance: none; border: 0; border-radius: var(--radius-pill);
+  background: var(--muted); overflow: hidden;
+}
+.bar::-webkit-progress-bar { background: var(--muted); border-radius: var(--radius-pill); }
+.bar::-webkit-progress-value { background: var(--primary); border-radius: var(--radius-pill); }
+.bar::-moz-progress-bar { background: var(--primary); border-radius: var(--radius-pill); }
+
+/* 툴팁. 브라우저 기본 title 은 뜨는 데 1초 넘게 걸리고 모양을 못 정한다.
+   data-tip 을 읽어 그린다 — 읽어 주는 이름은 aria-label 이 따로 맡는다.
+   키보드로 초점을 받았을 때도 떠야 한다. */
+[data-tip] { position: relative; }
+[data-tip]::after {
+  content: attr(data-tip); position: absolute; bottom: calc(100% + 7px); left: 50%;
+  transform: translateX(-50%); z-index: 40;
+  padding: 5px 9px; border-radius: var(--radius-xs);
+  background: var(--foreground); color: var(--card);
+  font-size: 11px; font-weight: 500; line-height: 1.5; white-space: nowrap;
+  opacity: 0; pointer-events: none; transition: opacity .12s;
+  box-shadow: var(--shadow-lift);
+}
+[data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { [data-tip]::after { transition: none; } }
+
 /* ═══════════════════════════════════════════════════ ③ 화면별 */
 
 /* ───────────────────────────────── 셸 · 좌측 단계 레일 */

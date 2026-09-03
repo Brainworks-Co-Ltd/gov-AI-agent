@@ -136,6 +136,9 @@
     </div>
     <p id="inbox-tally" class="tally"></p>
     <p id="ingest-log" class="log"></p>
+    <!-- 네이티브 <progress>. 직접 만들면 값·최대값·읽기를 다 다시 짜야 하는데
+         브라우저가 이미 role=progressbar 로 읽어 준다. 값이 없으면 감춘다. -->
+    <progress id="refresh-bar" class="bar" max="100" value="0" hidden></progress>
 
     <section id="recommend-box" class="recommend" hidden>
       <h3>우리 회사에 맞는 공고 <span id="rec-basis" class="count"></span></h3>

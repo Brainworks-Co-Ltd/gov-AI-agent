@@ -101,7 +101,7 @@ function setBookmarkButtonState(bookmark, saved) {
   bookmark.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-star"/></svg>';   // 채움 여부는 aria-pressed 로 CSS 가 그린다
   bookmark.setAttribute("aria-pressed", String(saved));
   bookmark.setAttribute("aria-label", saved ? "북마크 해제" : "북마크 추가");
-  bookmark.title = saved ? "북마크 해제" : "북마크 추가";
+  bookmark.dataset.tip = saved ? "북마크 해제" : "북마크 추가";
 }
 
 function updateBookmarkFilterButton() {
@@ -305,6 +305,18 @@ function toast(text, ok) {
   setTimeout(() => el.remove(), 5000);
 }
 
+/* 진행 막대. 판정 단계에서만 뜻이 있다 — 수집 단계는 총 건수를 아직 모른다. */
+function renderProgress(status) {
+  const bar = $("refresh-bar");
+  const total = Number(status.total || 0);
+  const show = status.state === "running" && status.phase === "judging" && total > 0;
+  bar.hidden = !show;
+  if (show) {
+    bar.max = total;
+    bar.value = Number(status.done || 0);
+  }
+}
+
 function refreshMessage(status) {
   if (status.state === "running") {
     if (status.phase === "collecting") {
@@ -335,9 +347,11 @@ async function pollRefresh() {
     if (running) {
       observedRefresh = true;
       $("ingest-log").textContent = refreshMessage(status);
+      renderProgress(status);
       refreshTimer = setTimeout(pollRefresh, 1000);
       return;
     }
+    renderProgress(status);
     if (observedRefresh) {
       observedRefresh = false;
       $("ingest-log").textContent = refreshMessage(status);
@@ -931,7 +945,7 @@ function pairRow(name, value) {
   del.type = "button";
   del.className = "ghost pair-del";
   del.textContent = "×";
-  del.title = "이 항목 지우기";
+  del.dataset.tip = "이 항목 지우기";
   del.addEventListener("click", () => row.remove());
   row.append(nameInput, valueInput, del);
   return row;
@@ -1013,7 +1027,7 @@ function renderPastList(items) {
     return;
   }
   list.innerHTML = items.map((it) => `
-    <li><a href="#" data-del="${escapeHtml(it.name)}" title="지우기">
+    <li><a href="#" data-del="${escapeHtml(it.name)}" data-tip="지우기" aria-label="${escapeHtml(it.name)} 지우기">
       <span class="kind">${it.sections ? it.sections + "문항" : "1덩어리"}</span>
       <span class="fname">${escapeHtml(it.name)}</span>
       <span class="kind">${it.chars.toLocaleString()}자</span>
