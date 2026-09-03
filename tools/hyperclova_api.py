@@ -48,7 +48,10 @@ TUNED_API_URL = "https://clovastudio.stream.ntruss.com/v3/tasks/{task_id}/chat-c
 def _load_key() -> str | None:
     # 컨테이너 배포 시에는 이미지에 키 파일을 넣지 않고 환경변수로 주입한다
     # (docker run -e CLOVA_API_KEY=... ). 로컬 개발은 기존 파일 방식 그대로 동작.
-    env_key = os.environ.get("CLOVA_API_KEY")
+    # strip() 이 중요하다. 배포 화면의 텍스트 영역에 키를 붙여넣으면 줄바꿈이나 공백이
+    # 딸려 들어가기 쉬운데, 그대로 Authorization 헤더에 실으면 인증 실패가 아니라
+    # 헤더 파싱 오류로 터져서 원인을 찾기 어렵다. tools/keys.py 와 같은 규칙.
+    env_key = (os.environ.get("CLOVA_API_KEY") or "").strip()
     if env_key:
         return env_key
     try:
