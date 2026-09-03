@@ -187,7 +187,8 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
   background: var(--muted); color: var(--muted-foreground); font-size: 12px; font-weight: 500;
 }
 
-.field { display: flex; flex-direction: column; gap: 4px; }
+/* 라벨이 입력칸 바로 위에 놓이는 짝이다. 4px 은 붙어 보이고 8px 은 짝이 풀린다. */
+.field { display: flex; flex-direction: column; gap: 6px; }
 
 /* 흰 상자 — 패널·사이드바가 공유하는 바탕 */
 .box, .form, .section {
@@ -348,6 +349,9 @@ main { padding: 24px 28px 60px; max-width: 1240px; }
 
 .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .toolbar label { color: var(--muted-foreground); font-size: 13px; }
+/* 라벨과 컨트롤 사이가 공백문자 하나(0px)뿐이라 글자가 셀렉트에 붙어 보였다.
+   :has(select) 로 필터 라벨만 잡는다 — '파일 고르기'는 인풋을 품지 않아 안 걸린다. */
+.toolbar label:has(select) { display: inline-flex; align-items: center; gap: 7px; }
 /* 네이티브 파일 인풋은 브라우저가 그린 영어 버튼('Choose Files')이 그대로 나와
    한글 화면에서 혼자 논다. 인풋을 감추고 label 을 버튼처럼 쓴다.
    필터 label 에는 for 가 없으므로 [for] 만으로 갈린다 — 새 클래스가 필요 없다. */
