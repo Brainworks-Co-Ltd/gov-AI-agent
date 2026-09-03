@@ -513,15 +513,16 @@ button.ghost { background: transparent; color: var(--muted-foreground); font-siz
 .checklist .doc + .doc { border-top: 1px solid var(--border); }
 .checklist .doc.done .dname { color: var(--muted-foreground); text-decoration: line-through; }
 .checklist input { margin: 2px 0 0; }
-/* 브라우저 기본 체크박스는 OS마다 달라 화면 톤이 깨진다 */
-.checklist input[type=checkbox] {
+/* 브라우저 기본 체크박스는 OS마다 달라 화면 톤이 깨진다. 체크리스트에만
+   걸어 뒀더니 프로필 폼의 6개가 OS 기본(13px)으로 남아 한 앱에 두 모습이 됐다 */
+input[type=checkbox] {
   appearance: none; width: 18px; height: 18px; flex: none;
   border: 1px solid var(--border); border-radius: var(--radius-xs);
   background: var(--card); cursor: pointer; display: grid; place-items: center;
   transition: background .12s, border-color .12s;
 }
-.checklist input[type=checkbox]:checked { background: var(--primary); border-color: var(--primary); }
-.checklist input[type=checkbox]:checked::after {
+input[type=checkbox]:checked { background: var(--primary); border-color: var(--primary); }
+input[type=checkbox]:checked::after {
   content: ""; width: 5px; height: 9px; margin-top: -2px;
   border: solid var(--primary-foreground); border-width: 0 2px 2px 0; transform: rotate(45deg);
 }
