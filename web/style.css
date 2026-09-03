@@ -68,6 +68,8 @@ input[type=text], input[type=number], select, textarea {
   font-family: inherit; font-size: 13px; background: #fff; color: var(--text);
 }
 .count { color: var(--muted); font-size: 12px; }
+/* 공고함 상단 집계 — 담당자가 목록을 훑기 전에 판세를 먼저 본다 */
+.tally { display: flex; gap: 7px; margin: 0 0 10px; flex-wrap: wrap; }
 .log { color: var(--muted); font-size: 12px; margin: 6px 0; min-height: 16px;
        white-space: pre-line; }
 .empty { color: var(--muted); padding: 40px 0; text-align: center; }
@@ -124,6 +126,17 @@ h3 { font-size: 14px; margin: 22px 0 8px; }
 .grid tr:last-child td { border-bottom: none; }
 .grid .quote { color: var(--muted); font-size: 12px; font-style: normal; }
 .grid .reason { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+/* 공고 요약 — 판정만으로는 '이 사업이 뭘 해 주나'를 알 수 없어 함께 보여준다 */
+.overview {
+  display: grid; grid-template-columns: 96px 1fr; gap: 6px 14px; margin: 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
+  padding: 14px 16px;
+}
+.overview dt { color: var(--muted); font-size: 12px; }
+.overview dd { margin: 0; font-size: 13px; white-space: pre-line;
+               max-height: 9em; overflow-y: auto; }
+.overview .none { grid-column: 1 / -1; color: var(--muted); }
 
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 ul.plain { margin: 0; padding-left: 18px; }
@@ -196,3 +209,38 @@ ul.files .none { color: var(--muted); font-size: 13px; }
   .split, .two-col { grid-template-columns: 1fr; }
   .form { grid-template-columns: 1fr 1fr; }
 }
+
+/* 작성 항목 직접 고치기 */
+.editor {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
+  padding: 12px 14px; margin-bottom: 14px;
+}
+.editor .hint { margin: 0 0 8px; }
+.editor textarea { width: 100%; resize: vertical; line-height: 1.8; }
+.editor .toolbar { margin: 10px 0 0; }
+
+/* 제출서류 출처 표기 */
+.src-note { color: var(--muted); font-size: 11px; list-style: none; margin-left: -18px; }
+.meta .none { color: var(--muted); }
+
+/* 제출서류 체크리스트 — 경고가 아니라 담당자가 직접 체크하는 목록 */
+.checklist { background: var(--panel); border: 1px solid var(--line);
+             border-radius: 7px; padding: 6px 8px; }
+.checklist .doc {
+  display: grid; grid-template-columns: 18px 42px 1fr; gap: 4px 10px;
+  align-items: start; padding: 8px 8px; border-radius: 5px; cursor: pointer;
+}
+.checklist .doc:hover { background: #fafbfc; }
+.checklist .doc + .doc { border-top: 1px solid var(--line); }
+.checklist .doc.done .dname { color: var(--muted); text-decoration: line-through; }
+.checklist input { margin: 3px 0 0; }
+.checklist .kind {
+  padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 700;
+  text-align: center; background: #eef0f3; color: var(--muted);
+}
+.checklist .kind.보유 { background: var(--ok-bg); color: var(--ok-fg); }
+.checklist .kind.발급 { background: var(--chk-bg); color: var(--chk-fg); }
+.checklist .kind.작성 { background: #eaf1fb; color: var(--accent); }
+.checklist .dname { font-size: 13px; }
+.checklist .dhint { grid-column: 3; color: var(--muted); font-size: 11px; }
+.checklist .src-note { margin: 8px 8px 4px; }

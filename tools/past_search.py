@@ -56,6 +56,10 @@ def load_passages() -> list[Passage]:
     for name in sorted(os.listdir(_PAST_DIR)):
         if not name.lower().endswith((".md", ".txt")):
             continue
+        # 폴더 안내문(README)은 신청서가 아니다. 걸러 내지 않으면 그 안내 문장이
+        # 초안 프롬프트에 '과거 신청서 문장'으로 섞여 들어간다.
+        if name.lower().startswith(("readme", "_")):
+            continue
         with open(os.path.join(_PAST_DIR, name), encoding="utf-8") as f:
             content = f.read()
 

@@ -46,8 +46,11 @@
           <option value="불가">불가</option>
         </select>
       </label>
+      <button id="btn-judge-all" class="primary">목록 전체 판정</button>
+      <button id="btn-judge-stop" hidden>중지</button>
       <span id="inbox-count" class="count"></span>
     </div>
+    <p id="inbox-tally" class="tally"></p>
     <p id="ingest-log" class="log"></p>
     <div id="notice-list" class="cards"></div>
   </section>
@@ -67,6 +70,9 @@
       </div>
       <p id="v-note" class="log"></p>
 
+      <h3>사업 개요</h3>
+      <dl id="v-overview" class="overview"></dl>
+
       <h3>요건별 판정</h3>
       <table class="grid">
         <thead>
@@ -75,16 +81,12 @@
         <tbody id="v-rows"></tbody>
       </table>
 
-      <div class="two-col">
-        <div>
-          <h3>제출서류</h3>
-          <ul id="v-docs" class="plain"></ul>
-        </div>
-        <div>
-          <h3>신청 일정</h3>
-          <ul id="v-sched" class="plain"></ul>
-        </div>
-      </div>
+      <h3>제출서류 체크리스트 <span id="v-docs-progress" class="count"></span></h3>
+      <div id="v-checklist" class="checklist"></div>
+      <p id="v-docs-note" class="log"></p>
+
+      <h3>신청 일정</h3>
+      <ul id="v-sched" class="plain"></ul>
 
       <h3>공고 첨부파일</h3>
       <ul id="v-files" class="files"></ul>
@@ -103,15 +105,30 @@
         <p id="d-fields" class="fields"></p>
       </div>
       <div class="toolbar">
-        <button id="btn-regenerate">초안 다시 만들기</button>
         <button id="btn-check" class="primary">제출 전 점검</button>
         <button id="btn-copy">전체 복사</button>
+        <button id="btn-edit-sections">작성 항목 고치기</button>
+        <button id="btn-regenerate">같은 항목으로 다시 쓰기</button>
         <span id="d-copied" class="count"></span>
+      </div>
+
+      <div id="section-editor" class="editor" hidden>
+        <p class="hint">
+          첨부에서 서식을 못 읽었거나 항목이 실제 양식과 다르면 여기서 고치세요.
+          한 줄에 항목 하나씩 적으면, 그 항목에 맞춰 초안을 다시 씁니다.
+        </p>
+        <textarea id="section-list" rows="7"></textarea>
+        <div class="toolbar">
+          <button id="btn-apply-sections" class="primary">이 항목으로 다시 쓰기</button>
+          <button id="btn-cancel-sections">취소</button>
+        </div>
       </div>
       <div class="split">
         <div id="d-sections" class="sections"></div>
         <aside class="issues">
-          <h3>점검 결과</h3>
+          <h3>글 점검</h3>
+          <p class="hint">오탈자와 문서 간 수치 불일치만 봅니다.<br>
+             제출서류는 ‘자격 판정’ 탭의 체크리스트에서 챙기세요.</p>
           <div id="d-issues"><p class="empty small">‘제출 전 점검’을 누르세요.</p></div>
         </aside>
       </div>

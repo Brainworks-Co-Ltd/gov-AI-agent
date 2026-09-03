@@ -42,7 +42,9 @@ def _read_csv(name: str) -> list[dict]:
         with io.open(path, encoding="utf-8") as f:
             return list(csv.DictReader(f))
     except FileNotFoundError:
-        print(f"  정답셋이 없습니다: data/{name}  (python -m tools.seed_dummy 로 생성)")
+        print(f"  정답셋이 없습니다: data/{name}")
+        print(f"  실제 수집한 공고에 사람이 라벨을 붙여 만드세요 — 만드는 법은 "
+              f"README '성능' 절 참고.")
         return []
 
 
@@ -52,13 +54,13 @@ def score_dupe(use_llm: bool = True) -> None:
     rows = _read_csv("golden_dupe.csv")
     if not rows:
         return
-    # 실수집 캐시가 아니라 **더미 공고**로 채점한다 — 정답셋이 더미 기준이라,
-    # 실제 공고를 수집해도 채점 결과가 흔들리지 않아야 회귀 방지 장치로 쓸 수 있다.
+    # 채점은 고정된 공고 묶음(golden_notices.json)으로 한다. 매일 수집되는 목록으로
+    # 채점하면 대상이 계속 바뀌어 점수를 비교할 수 없다.
     notices = {n.id: n for n in ingest.load_golden()}
     missing = {r["notice_a"] for r in rows} | {r["notice_b"] for r in rows}
     missing -= set(notices)
     if missing:
-        print(f"  더미 공고에 없는 {len(missing)}건은 채점에서 제외합니다.")
+        print(f"  채점용 공고 묶음에 없는 {len(missing)}건은 제외합니다.")
         rows = [r for r in rows
                 if r["notice_a"] not in missing and r["notice_b"] not in missing]
 
@@ -104,9 +106,8 @@ def score_eligibility() -> None:
     if not rows:
         return
 
-    # DB를 거치지 않고 더미 공고에서 바로 판정한다. DB를 읽으면 실제 공고를 수집한
-    # 뒤 클러스터 표가 실데이터로 갈아엎여, 더미 공고의 '통합된 짝'이 사라진 채로
-    # 채점돼 점수가 엉뚱하게 흔들린다.
+    # DB를 거치지 않고 채점용 묶음에서 바로 판정한다. DB를 읽으면 새로 수집할 때마다
+    # 클러스터 표가 갈아엎여 '통합된 짝'이 사라진 채로 채점돼 점수가 흔들린다.
     notices = {n.id: n for n in ingest.load_golden()}
     clusters = dedupe.build_clusters(list(notices.values()), use_llm=True)
     siblings: dict[str, list] = {}
@@ -122,7 +123,7 @@ def score_eligibility() -> None:
     for r in rows:
         notice = notices.get(r["notice_id"])
         if notice is None:
-            print(f"  더미 공고에 없어 건너뜁니다: {r['notice_id']}")
+            print(f"  채점용 공고 묶음에 없어 건너뜁니다: {r['notice_id']}")
             continue
 
         report = eligibility.evaluate(notice, profile, siblings.get(notice.id, []))
@@ -137,7 +138,7 @@ def score_eligibility() -> None:
 
     if not graded:
         print("\n② 자격 판정 — 채점할 항목이 없습니다. "
-              "(python -m tools.seed_dummy 로 더미 데이터를 만드세요)")
+              "(data/golden_notices.json 과 정답셋 CSV가 필요합니다)")
         return
 
     correct = sum(matrix[v][v] for v in VERDICTS)

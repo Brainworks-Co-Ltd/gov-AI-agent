@@ -28,6 +28,22 @@ STRUCTURED_API_URL = "https://clovastudio.stream.ntruss.com/v3/chat-completions/
 _KEY_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "clova_api_key.txt")
 _PLACEHOLDER = "여기에-발급받은-API-키를-붙여넣고-저장하세요"
 
+# ── 튜닝(학습)한 모델 ────────────────────────────────────────────────────
+# CLOVA Studio '학습' 메뉴에서 튜닝을 끝내면 작업 ID(taskId)가 나온다. 그 ID를
+# clova_tuned_task.txt 에 적어 두면 신청서 초안 생성에 그 모델을 쓴다.
+#
+# 호출 경로가 기본 모델과 다르다:
+#     기본   /v3/chat-completions/{모델명}
+#     튜닝   /v3/tasks/{taskId}/chat-completions
+#
+# **튜닝 모델은 Structured Outputs(responseFormat)를 지원하지 않는다**
+# (공식 문서: "이미지 입력, 추론, Function calling, Structured Outputs 미지원").
+# 그래서 튜닝 모델을 쓸 때는 JSON 스키마로 강제하지 못하고 평문을 받아 파싱해야 한다
+# — agent/drafter.py 가 그 경로를 따로 갖고 있다.
+_TUNED_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                           "clova_tuned_task.txt")
+TUNED_API_URL = "https://clovastudio.stream.ntruss.com/v3/tasks/{task_id}/chat-completions"
+
 
 def _load_key() -> str | None:
     # 컨테이너 배포 시에는 이미지에 키 파일을 넣지 않고 환경변수로 주입한다
@@ -56,6 +72,70 @@ def is_configured() -> bool:
 def get_key() -> str | None:
     """다른 모듈(예: 임베딩 호출기)에서 같은 키를 재사용할 때 쓴다."""
     return _load_key()
+
+
+def tuned_task_id() -> str | None:
+    """튜닝한 모델의 작업 ID. 없으면 None (기본 모델을 쓴다)."""
+    env = os.environ.get("CLOVA_TUNED_TASK_ID")
+    if env and env.strip():
+        return env.strip()
+    try:
+        with open(_TUNED_FILE, encoding="utf-8") as f:
+            task_id = f.read().strip()
+    except FileNotFoundError:
+        return None
+    if not task_id or task_id.startswith("여기에") or task_id.startswith("#"):
+        return None
+    return task_id
+
+
+def _post(url: str, body: dict, timeout: int = 60) -> dict:
+    """CLOVA Studio 공통 호출부. 상태코드 20000만 성공으로 본다."""
+    key = _load_key()
+    if not key:
+        raise RuntimeError("clova_api_key.txt 에 API 키가 없습니다.")
+
+    data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(url, data=data, method="POST")
+    req.add_header("Authorization", "Bearer " + key)
+    req.add_header("Content-Type", "application/json")
+    req.add_header("X-NCP-CLOVASTUDIO-REQUEST-ID", uuid.uuid4().hex)
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "ignore")[:300]
+        raise RuntimeError(f"HTTP {e.code} — {detail}") from None
+
+    status = payload.get("status", {})
+    if status.get("code") != "20000":
+        raise RuntimeError(f"{status.get('code')}: {status.get('message')}")
+    return payload
+
+
+def chat_tuned(system: str, user: str, max_tokens: int = 1500,
+               temperature: float = 0.3, task_id: str | None = None) -> str:
+    """**튜닝한 모델**에 요청을 보내고 평문을 돌려받는다.
+
+    Structured Outputs를 못 쓰므로 결과는 평문이다. 형식은 프롬프트로 정하고
+    호출부(agent/drafter.py)가 파싱한다.
+    """
+    task_id = task_id or tuned_task_id()
+    if not task_id:
+        raise RuntimeError("clova_tuned_task.txt 에 튜닝 작업 ID가 없습니다.")
+
+    payload = _post(TUNED_API_URL.format(task_id=task_id), {
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "maxTokens": max_tokens,
+        "temperature": temperature,
+        "topP": 0.8,
+        "repeatPenalty": 1.2,
+    })
+    return payload["result"]["message"]["content"]
 
 
 def chat(system: str, user: str, max_tokens: int = 512,

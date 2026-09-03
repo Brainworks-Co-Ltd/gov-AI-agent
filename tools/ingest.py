@@ -24,8 +24,9 @@ _DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 
 # 마지막 실수집 결과. 수집이 성공할 때마다 갱신된다.
 CACHE_PATH = os.path.join(_DATA_DIR, "notices_cache.json")
-# 연습용 더미 공고(정답셋과 짝을 이룸). **실수집으로 덮어쓰지 않는다** — 여기가
+# 채점용 공고 묶음(정답셋과 짝을 이룸). **실수집으로 덮어쓰지 않는다** — 여기가
 # 덮어써지면 score.py가 채점할 대상을 잃어 회귀 방지 장치가 통째로 사라진다.
+# 지금은 비어 있다(연습용 더미를 걷어냈다). 실제 공고에 라벨을 붙여 다시 채우면 된다.
 GOLDEN_PATH = os.path.join(_DATA_DIR, "golden_notices.json")
 
 try:
@@ -43,21 +44,21 @@ def _read(path: str) -> list[Notice]:
 
 
 def load_golden() -> list[Notice]:
-    """연습용 더미 공고 — score.py 채점 대상."""
+    """채점용 정답 공고 묶음. 파일이 없으면 빈 목록 (score.py가 안내한다)."""
     return _read(GOLDEN_PATH)
 
 
 def load_cache() -> list[Notice]:
-    """오프라인 폴백용 공고. 실수집 캐시가 없으면 더미로 내려간다.
+    """오프라인 폴백용 공고 — 마지막 실수집 결과.
 
-    이 순서 덕분에 처음 받아 본 사람도 키 없이 바로 데모할 수 있고, 한 번이라도
-    실수집에 성공한 뒤에는 진짜 공고로 폴백한다.
+    연습용 더미로 내려가는 경로는 없앴다. 화면에 실제 공고와 지어낸 공고가 섞이면
+    담당자가 어느 게 진짜인지 알 수 없고, 원문 링크를 눌렀을 때 없는 페이지로 간다.
     """
-    return _read(CACHE_PATH) or load_golden()
+    return _read(CACHE_PATH)
 
 
 def save_cache(notices: list[Notice]) -> None:
-    """실수집 결과만 저장한다 (더미 파일은 건드리지 않는다)."""
+    """실수집 결과만 저장한다 (채점용 묶음 golden_notices.json 은 건드리지 않는다)."""
     os.makedirs(_DATA_DIR, exist_ok=True)
     with open(CACHE_PATH, "w", encoding="utf-8") as f:
         json.dump([n.to_dict() for n in notices], f, ensure_ascii=False, indent=1)

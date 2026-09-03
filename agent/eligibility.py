@@ -354,14 +354,47 @@ def _judge_size(req: Requirement, p: CompanyProfile,
     return VERDICT_NO, shown, f"상시근로자 {p.employees}명이 '{req.value}' 조건을 벗어납니다.{note}"
 
 
+# 시·군·구 이름. 시·도(_REGION_ALIASES)만으로는 "금천구 소재 기업" 같은 요건을 판정할 수
+# 없어 전부 '확인필요'로 샌다 — 실측에서 확인필요의 가장 흔한 원인이었다.
+_DISTRICT_RE = re.compile(r"([가-힣]{2,5}(?:시|군|구))(?![가-힣])")
+# 여러 시·도에 같은 이름이 있는 자치구 — 이런 이름은 어느 지역인지 단정할 수 없다.
+_AMBIGUOUS_DISTRICTS = {"남구", "북구", "동구", "서구", "중구", "강서구", "성산구",
+                        "고성군", "남원시", "광산구"}
+# 시·도 이름 자체가 '시/군/구'로 끝나 시·군·구로 오인되는 것들.
+_NOT_DISTRICT = {"광역시", "특별시", "특별자치시", "자치구", "행정시"}
+
+
+def _districts_in(text: str) -> set[str]:
+    return {m.group(1) for m in _DISTRICT_RE.finditer(text or "")
+            if m.group(1) not in _NOT_DISTRICT
+            and not any(m.group(1).endswith(s) for s in _NOT_DISTRICT)}
+
+
 def _judge_region(req: Requirement, p: CompanyProfile,
                   context: str = "") -> tuple[str, str, str]:
     if not p.region:
         return VERDICT_CHECK, "소재지 미입력", "프로필에 소재지가 없어 판단할 수 없습니다."
     ours = _regions_in(p.region)
     theirs = _regions_in(f"{req.value} {req.quote}")
-    shown = p.region
+    shown = f"{p.region} {p.region_detail}".strip()
+
     if not theirs:
+        # 시·도가 안 나오면 시·군·구로 판정한다. "금천구 소재 기업"에 우리(광산구)가
+        # 해당하지 않는 건 분명한 '불가'인데, 이걸 '확인필요'로 미루면 담당자가
+        # 쓸 수 없는 공고를 계속 들여다보게 된다.
+        wanted = _districts_in(f"{req.value} {req.quote}")
+        if wanted:
+            mine = _districts_in(f"{p.region} {p.region_detail}")
+            if wanted & mine:
+                names = ", ".join(sorted(wanted & mine))
+                return VERDICT_OK, shown, f"소재지가 대상 지역({names})에 포함됩니다."
+            # 여러 시·도에 같은 이름이 있는 구는 단정하지 않는다 (남구·중구 등).
+            if wanted <= _AMBIGUOUS_DISTRICTS:
+                return VERDICT_CHECK, shown, (
+                    f"대상 지역({', '.join(sorted(wanted))})은 여러 시·도에 같은 이름이 "
+                    f"있어 담당자 확인이 필요합니다.")
+            names = ", ".join(sorted(wanted))
+            return VERDICT_NO, shown, f"대상 지역({names})에 소재지가 포함되지 않습니다."
         return VERDICT_CHECK, shown, "요건 문장에서 대상 지역을 특정하지 못했습니다."
     if "*" in theirs:
         return VERDICT_OK, shown, "전국이 대상이라 소재지 제한이 없습니다."
@@ -373,6 +406,27 @@ def _judge_region(req: Requirement, p: CompanyProfile,
 
 # 업종 요건에서 '제한 없음'을 뜻하는 표현.
 _NO_LIMIT_MARKS = ("제한 없음", "제한없음", "무관", "전 업종", "전업종")
+
+# 제조업체가 신청할 수 없는 게 분명한 업종. 여기 있는 말이 요건에 나오면 '불가'로
+# 확정한다 — 실측에서 "일반ㆍ휴게음식점", "의류·신발·액세서리" 같은 공고가 전부
+# '확인필요'로 새어, 담당자가 쓸 수 없는 공고를 계속 들여다보게 만들었다.
+#
+# 목록을 일부러 좁게 유지한다. 애매한 표현까지 넣어 '불가'로 걸러 버리면 신청할 수 있는
+# 공고를 놓치는데, 그건 이 도구가 저지를 수 있는 더 나쁜 실수다.
+_NON_MANUFACTURING = (
+    "음식점", "휴게음식", "일반음식", "제과점", "카페", "커피", "숙박업", "펜션",
+    "미용업", "이용업", "세탁업", "노래연습장", "PC방", "학원", "교습소",
+    "부동산중개", "공인중개", "여행업", "운수업", "택시", "화물운송",
+    "농업인", "어업인", "축산농가", "임업인", "농가", "어가",
+    "전통시장", "상점가", "골목상권",
+)
+
+
+def _is_manufacturer(p: CompanyProfile) -> bool:
+    """우리 회사가 제조업체인가. KSIC 대분류 C 또는 업종명으로 판단한다."""
+    if p.ksic and p.ksic.strip().upper().startswith("C"):
+        return True
+    return "제조" in (p.industry or "")
 
 
 def _judge_industry(req: Requirement, p: CompanyProfile,
@@ -390,6 +444,15 @@ def _judge_industry(req: Requirement, p: CompanyProfile,
             return VERDICT_OK, shown, f"우리 업종({p.industry})이 '{word}'에 해당합니다."
     if p.ksic and p.ksic.upper().startswith("C") and "제조" in req.value:
         return VERDICT_OK, shown, f"표준산업분류 {p.ksic}(제조업)에 해당합니다."
+
+    # 제조업과 **명백히** 다른 업종만 '불가'로 확정한다. "AI 분야", "항공기업"처럼
+    # 우리 업종이 걸칠 여지가 있는 표현은 확인필요로 남긴다 — 신청할 수 있는 공고를
+    # 잘못 걸러 내면 기회를 통째로 잃기 때문이다.
+    if _is_manufacturer(p):
+        blocked = [w for w in _NON_MANUFACTURING if w in text]
+        if blocked:
+            return VERDICT_NO, shown, (
+                f"'{blocked[0]}' 대상 사업이라 제조업인 우리 회사는 해당하지 않습니다.")
     return VERDICT_CHECK, shown, f"'{req.value}'에 해당하는지 담당자 확인이 필요합니다."
 
 

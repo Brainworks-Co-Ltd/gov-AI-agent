@@ -129,21 +129,38 @@ class Handler(BaseHTTPRequestHandler):
                 if tail == "eligibility":
                     refresh = query.get("refresh", ["0"])[0] == "1"
                     report = orchestrator.eligibility_of(conn, notice, refresh=refresh)
-                    self._json(report.to_dict())
+                    data = report.to_dict()
+                    # 제출서류 목록은 오픈API 응답에 사실상 없고 첨부(공고문·서식) 안에
+                    # 있다. 그 추출은 파일을 내려받아 여는 비싼 작업이라 판정 자체에는
+                    # 넣지 않는다(공고함 일괄 판정이 느려진다). 담당자가 공고 하나를
+                    # 열어 볼 때, 즉 여기서만 합친다.
+                    spec = orchestrator.form_spec_of(conn, notice)
+                    docs = list(data.get("required_docs", []))
+                    for doc in spec.get("documents", []):
+                        if doc not in docs:
+                            docs.append(doc)
+                    data["required_docs"] = docs
+                    data["docs_source"] = spec.get("source_file", "")
+                    self._json(data)
                     return
                 if tail == "draft":
                     saved = store.get_draft(conn, notice.id)
                     self._json(saved or {"draft": None, "issues": []})
                     return
+                if tail == "checklist":
+                    self._json(orchestrator.checklist_of(conn, notice))
+                    return
             self._json({"error": "알 수 없는 경로입니다."}, 404)
         finally:
             conn.close()
 
-    def _notices(self, conn, query: dict) -> dict:
-        """공고함 목록.
+    def _filtered(self, conn, query: dict) -> list[dict]:
+        """필터가 적용된 공고함 목록.
 
         **사업 단위**(중복 통합 후 대표 1건)로 내보낸다 — 목록에 기업마당 공고와
         K-Startup 공고가 나란히 뜨면 중복을 없앤 의미가 사라진다.
+        필터를 서버에서 처리해야 화면 코드가 단순해지고, '일괄 판정'이 지금 보이는
+        목록과 정확히 같은 대상을 돌 수 있다.
         """
         include_closed = query.get("closed", ["0"])[0] == "1"
         notices = store.open_businesses(conn, include_closed=include_closed)
@@ -152,7 +169,6 @@ class Handler(BaseHTTPRequestHandler):
         verdicts = store.all_verdicts(conn, profile_store.hash_of(profile))
         items = [orchestrator.notice_view(conn, n, verdicts) for n in notices]
 
-        # 필터는 서버에서 처리한다 (화면 코드가 단순해지고, 건수 표시가 정확해진다).
         region = query.get("region", [""])[0].strip()
         if region:
             items = [i for i in items
@@ -167,9 +183,40 @@ class Handler(BaseHTTPRequestHandler):
         verdict = query.get("verdict", [""])[0].strip()
         if verdict:
             items = [i for i in items if i.get("verdict") == verdict]
+        return items
 
+    def _notices(self, conn, query: dict) -> dict:
+        items = self._filtered(conn, query)
+        tally = {"가능": 0, "확인필요": 0, "불가": 0}
+        for i in items:
+            if i.get("verdict") in tally:
+                tally[i["verdict"]] += 1
         return {"items": items, "total": len(items),
-                "judged": sum(1 for i in items if i.get("verdict"))}
+                "judged": sum(tally.values()), "tally": tally}
+
+    def _judge_batch(self, conn, body: dict) -> dict:
+        """아직 판정하지 않은 공고를 조금씩 판정한다 (공고함 '전체 판정'용).
+
+        한 번에 다 돌리지 않는 이유: 공고 하나마다 LLM을 부르므로 수백 건이면 수십 분이
+        걸린다. 화면이 그동안 멈춰 있으면 담당자는 고장 난 줄 안다. 조금씩 끊어 돌리고
+        진행 상황을 돌려주면, 결과가 목록에 하나씩 채워지고 언제든 멈출 수 있다.
+        """
+        query = {k: [str(v)] for k, v in body.items() if v not in (None, "")}
+        items = self._filtered(conn, query)
+        todo = [i for i in items if not i.get("verdict")]
+        batch = todo[:max(1, min(int(body.get("limit", 4)), 10))]
+
+        profile = profile_store.load()
+        judged = []
+        for item in batch:
+            notice = store.get_notice(conn, item["id"])
+            if notice is None:
+                continue
+            report = orchestrator.eligibility_of(conn, notice, profile)
+            judged.append({"id": notice.id, "verdict": report.overall})
+
+        return {"judged": judged, "done": len(items) - len(todo) + len(judged),
+                "total": len(items), "remaining": len(todo) - len(judged)}
 
     # ────────────────────────────────────────────────────────────── POST
 
@@ -185,6 +232,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(ingest.run(use_llm=body.get("use_llm", True),
                                       offline=body.get("offline", False)))
                 return
+            if path == "/api/judge":
+                conn = store.connect()
+                try:
+                    self._json(self._judge_batch(conn, self._body()))
+                finally:
+                    conn.close()
+                return
 
             conn = store.connect()
             try:
@@ -194,9 +248,23 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"error": "공고를 찾을 수 없습니다."}, 404)
                     return
                 if tail == "draft":
-                    refresh = self._body().get("refresh", False)
-                    draft = orchestrator.draft_of(conn, notice, refresh=refresh)
+                    body = self._body()
+                    # 담당자가 직접 고친 항목 목록. 첨부에서 서식을 못 읽었거나
+                    # 읽어낸 항목이 실제 양식과 다를 때, 여기로 넘겨 다시 쓴다.
+                    sections = [str(s).strip() for s in (body.get("sections") or [])
+                                if str(s).strip()]
+                    draft = orchestrator.draft_of(
+                        conn, notice, refresh=body.get("refresh", False),
+                        sections=sections or None)
                     self._json(draft.to_dict())
+                    return
+                if tail == "checklist":
+                    # 담당자가 체크한 상태를 그대로 저장한다. 서류를 실제로 뗐는지는
+                    # 사람만 아는 정보라 도구가 판단하지 않는다.
+                    checks = {str(k): bool(v)
+                              for k, v in (self._body().get("checks") or {}).items()}
+                    store.save_doc_checks(conn, notice.id, checks)
+                    self._json(orchestrator.checklist_of(conn, notice))
                     return
                 if tail == "check":
                     draft = _draft_from_body(self._body(), notice.id) \
@@ -234,7 +302,7 @@ def _split_notice_path(path: str) -> tuple[str | None, str]:
     rest = path[len(prefix):]
     if not rest:
         return None, ""
-    known = ("eligibility", "draft", "check")
+    known = ("eligibility", "draft", "check", "checklist")
     head, _, tail = rest.rpartition("/")
     if tail in known and head:
         return unquote(head), tail
@@ -260,7 +328,19 @@ def _draft_from_body(body: dict, notice_id: str) -> Draft | None:
         note=str(body.get("note") or ""))
 
 
-class _IPv6Server(ThreadingHTTPServer):
+class _Server(ThreadingHTTPServer):
+    """IPv4 루프백 서버.
+
+    allow_reuse_address 를 끄는 게 핵심이다. 파이썬 기본값(True)은 윈도우에서
+    SO_REUSEADDR로 동작해서, **이미 서버가 떠 있는데도 두 번째 인스턴스가 조용히 같은
+    포트에 함께 붙는다.** 그러면 요청이 옛 프로세스로도 가서, 코드를 고치고 다시 켰는데
+    바뀐 게 반영 안 된 것처럼 보인다(실제로 그렇게 헤맸다). 꺼 두면 "이미 사용 중"
+    이라고 곧바로 알려 준다.
+    """
+    allow_reuse_address = False
+
+
+class _IPv6Server(_Server):
     """IPv6 루프백(::1) 전용 서버."""
     address_family = socket.AF_INET6
 
@@ -276,13 +356,14 @@ def _start_servers() -> list[ThreadingHTTPServer]:
     한쪽 바인딩이 실패해도(IPv6가 꺼져 있는 환경 등) 나머지 하나로 계속 동작한다.
     """
     servers: list[ThreadingHTTPServer] = []
-    for cls, host in ((ThreadingHTTPServer, "127.0.0.1"), (_IPv6Server, "::1")):
+    for cls, host in ((_Server, "127.0.0.1"), (_IPv6Server, "::1")):
         try:
             servers.append(cls((host, PORT), Handler))
         except OSError as e:
             if not servers:                 # 첫 바인딩부터 실패하면 원인을 알려야 한다
                 print(f"  [오류] {host}:{PORT} 에 서버를 띄우지 못했습니다 — {e}")
-                print(f"         이미 {PORT} 포트를 쓰는 프로그램이 있는지 확인하세요.")
+                print(f"         이미 서버가 떠 있을 수 있습니다. 그 창에서 Ctrl+C 로 "
+                      f"끄고 다시 실행하세요.")
             else:
                 print(f"  [알림] {host} 는 사용할 수 없어 건너뜁니다. ({e})")
     return servers

@@ -3,6 +3,17 @@
 문제 Pool이 지목한 리스크가 곧 이 모듈의 요구사항이다:
     "서류 누락 · 일정 착오 · 문서 간 수치 불일치"
 
+**점검을 두 곳으로 나눈다.** 일이 일어나는 시점이 다르기 때문이다.
+
+    서류 준비   → 체크리스트 (document_checklist)
+                공고를 검토하는 단계에서 "무엇을 떼러 가야 하나"를 본다. 발급에
+                며칠 걸리는 서류가 있어 **초안을 쓰기 전에** 알아야 한다. 그리고
+                실제로 뗐는지는 사람만 아는 일이라, 경고를 띄우는 대신 담당자가
+                직접 체크하게 한다.
+
+    글 점검     → run() : 오탈자 · 문서 간 수치 불일치
+                초안을 다 쓴 **뒤에** 볼 일이다. 글이 없으면 검사할 것도 없다.
+
 전부 **규칙으로** 검사한다. LLM을 쓰지 않는 이유가 분명하다. 이 검사는 "빠진 게
 없다"는 확답을 주는 게 목적인데, 매번 답이 달라질 수 있는 도구로는 그 확답을 줄 수
 없다. 서류 목록 대조와 숫자 비교는 애초에 코드가 더 잘하는 일이기도 하다.
@@ -56,61 +67,83 @@ def _normalize_doc(name: str) -> str:
     return name.strip()
 
 
-def check_documents(report: EligibilityReport, profile: CompanyProfile,
-                    notice: Notice | None = None) -> list[CheckIssue]:
-    """공고가 요구하는 서류 vs 우리가 가진 서류.
+# 이번에 새로 '작성'하는 서류 — 발급받는 게 아니라 써야 하는 것이라 성격이 다르다.
+_WRITTEN_DOCS = ("신청서", "계획서", "제안서", "동의서", "확약서", "각서", "서약서",
+                 "소개서", "요약서")
 
-    '신청서'나 '사업계획서'처럼 이번에 새로 쓰는 서류는 보유 목록에 있을 리가 없으니
-    누락이 아니라 '작성 대상'으로 안내한다. 이걸 구분 안 하면 매번 똑같은 경고가
-    떠서 담당자가 경고 전체를 무시하게 된다.
+
+def document_checklist(report: EligibilityReport, profile: CompanyProfile,
+                       notice: Notice | None = None,
+                       checked: dict | None = None) -> dict:
+    """제출서류를 **체크리스트**로 만든다.
+
+    경고 목록이 아니라 체크리스트인 이유: 서류를 실제로 뗐는지는 사람만 안다.
+    도구가 "없습니다"라고 단정하면 이미 떼어 둔 서류에도 빨간 경고가 뜨고, 그런 게
+    몇 개 쌓이면 담당자가 경고 전체를 무시하게 된다. 대신 아는 것(회사 프로필에 있는
+    보유 서류)은 미리 체크해 두고, 나머지는 담당자가 직접 체크하게 한다.
+
+    kind 로 세 갈래를 나눈다 — 준비 방법이 다르기 때문이다.
+        보유   프로필에 이미 있는 서류
+        발급   떼러 가야 하는 서류 (발급에 며칠 걸리기도 한다)
+        작성   이번에 써야 하는 서류 (신청서·사업계획서 — 초안 탭이 돕는다)
     """
-    issues: list[CheckIssue] = []
     on_hand = {_normalize_doc(d) for d in profile.docs_on_hand}
+    checked = checked or {}
 
-    # 공고에 신청서 서식이 첨부돼 있으면 그 파일명을 안내에 실어 준다. "양식에 옮겨
-    # 담으세요"만 말하고 어느 파일인지 안 알려주면 담당자가 다시 찾아 헤매야 한다.
     forms = notice.forms() if notice else []
-    form_hint = (f" 공고 첨부의 '{forms[0]['name']}' 파일을 받아 옮겨 담으세요."
-                 if forms else "")
+    form_file = forms[0]["name"] if forms else ""
 
+    items: list[dict] = []
+    seen: set[str] = set()
     for raw in report.required_docs:
         if any(mark in raw for mark in _NOT_A_DOC):
             continue
         name = _normalize_doc(raw)
-        if name in on_hand:
+        if name in seen:
             continue
-        if any(k in name for k in ("신청서", "계획서", "제안서", "동의서", "확약서")):
-            issues.append(CheckIssue(
-                severity=SEV_INFO, kind="누락서류", where=raw,
-                message=f"'{raw}'는 이번에 작성해야 하는 서류입니다.",
-                suggestion="초안 탭에서 만든 내용을 공고 양식에 옮겨 담으세요."
-                           + form_hint))
-            continue
-        issues.append(CheckIssue(
-            severity=SEV_ERROR, kind="누락서류", where=raw,
-            message=f"'{raw}'가 보유 서류 목록에 없습니다.",
-            suggestion="발급처에서 미리 준비하거나, 이미 있다면 회사 프로필의 "
-                       "보유 서류에 추가하세요."))
+        seen.add(name)
 
-    # 공고문에서 서류 목록을 못 건졌을 때 — 대부분의 공고가 여기 해당한다.
-    # 침묵하는 대신, 어디를 봐야 하는지 알려주고 기본 서류라도 점검한다.
-    if not report.required_docs:
+        if name in on_hand:
+            kind, hint = "보유", "회사 프로필에 보유 서류로 등록돼 있습니다."
+        elif any(k in name for k in _WRITTEN_DOCS):
+            kind = "작성"
+            hint = ("‘초안·점검’ 탭에서 만든 글을 공고 양식에 옮겨 담으세요."
+                    + (f" 첨부의 ‘{form_file}’ 파일입니다." if form_file else ""))
+        else:
+            kind, hint = "발급", "발급처에서 미리 준비하세요. 며칠 걸리는 서류가 있습니다."
+
+        items.append({
+            "name": raw,
+            "kind": kind,
+            # 보유 서류는 미리 체크해 둔다. 담당자가 끄고 켤 수 있다.
+            "checked": bool(checked.get(raw, kind == "보유")),
+            "hint": hint,
+        })
+
+    note = ""
+    if not items:
         docs_file = next((a for a in (notice.attachments if notice else [])
                           if a.get("kind") == "공고문"), None)
-        issues.append(CheckIssue(
-            severity=SEV_INFO, kind="누락서류", where="제출서류 목록",
-            message="이 공고의 오픈API 응답에는 제출서류 목록이 없습니다.",
-            suggestion=(f"첨부된 공고문 '{docs_file['name']}' 에서 직접 확인하세요."
-                        if docs_file else "원문 공고에서 직접 확인하세요.")))
-
+        note = ("첨부에서 제출서류 목록을 찾지 못했습니다. "
+                + (f"‘{docs_file['name']}’ 에서 직접 확인하세요."
+                   if docs_file else "원문 공고에서 직접 확인하세요."))
+        # 목록을 못 얻었어도 어느 사업에나 필요한 기본 서류는 짚어 준다.
         for doc in _COMMON_DOCS:
-            if doc not in on_hand:
-                issues.append(CheckIssue(
-                    severity=SEV_WARN, kind="누락서류", where=doc,
-                    message=f"기본 서류 '{doc}'를 보유 목록에서 찾지 못했습니다.",
-                    suggestion="대부분의 지원사업이 요구하는 서류입니다. 미리 발급받아 "
-                               "두거나, 이미 있다면 회사 프로필에 추가하세요."))
-    return issues
+            items.append({
+                "name": doc,
+                "kind": "보유" if doc in on_hand else "발급",
+                "checked": bool(checked.get(doc, doc in on_hand)),
+                "hint": "대부분의 지원사업이 요구하는 기본 서류입니다.",
+            })
+
+    schedule = check_schedule(notice) if notice else []
+    return {
+        "items": items,
+        "note": note,
+        "done": sum(1 for i in items if i["checked"]),
+        "total": len(items),
+        "schedule": [i.__dict__ for i in schedule],
+    }
 
 
 # 본문에서 뽑아낼 수치 — 프로필과 대조할 수 있는 것만 본다.
@@ -256,12 +289,15 @@ def check_schedule(notice: Notice) -> list[CheckIssue]:
 _SEVERITY_ORDER = {SEV_ERROR: 0, SEV_WARN: 1, SEV_INFO: 2}
 
 
-def run(notice: Notice, draft: Draft, report: EligibilityReport,
-        profile: CompanyProfile) -> list[CheckIssue]:
-    """제출 전 점검 전체. 심각한 것부터 정렬해서 돌려준다."""
-    issues = (check_schedule(notice)
-              + check_documents(report, profile, notice)
-              + check_numbers(draft, profile)
-              + check_style(draft, profile))
+def run(draft: Draft, profile: CompanyProfile) -> list[CheckIssue]:
+    """**작성한 글**을 점검한다 — 문서 간 수치 불일치와 표기 오류만.
+
+    서류 준비와 일정은 여기서 보지 않는다(document_checklist 로 옮겼다). 초안을 다 쓴
+    화면에서 "사업자등록증을 떼세요" 같은 말이 섞이면, 정작 봐야 할 '본문의 인원 수가
+    프로필과 다릅니다' 같은 경고가 묻힌다. 서류는 초안을 쓰기 **전에** 챙길 일이기도 하다.
+
+    심각한 것부터 정렬해서 돌려준다.
+    """
+    issues = check_numbers(draft, profile) + check_style(draft, profile)
     issues.sort(key=lambda i: _SEVERITY_ORDER.get(i.severity, 3))
     return issues
