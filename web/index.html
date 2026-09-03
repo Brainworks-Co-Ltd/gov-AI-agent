@@ -8,25 +8,48 @@
 </head>
 <body>
 
-<header class="top">
-  <div class="brand">
-    <h1>정부지원사업 공고 분석 · 신청서 초안</h1>
-    <p class="sub">기업마당 · K-Startup 공고를 모아 중복을 없애고, 신청 가능 여부를 판정하고, 신청서 초안까지 만듭니다.</p>
-  </div>
-  <div class="status" id="status"></div>
-</header>
+<div class="shell">
 
-<nav class="tabs">
-  <button class="tab active" data-tab="inbox">① 공고함</button>
-  <button class="tab" data-tab="verdict">② 자격 판정</button>
-  <button class="tab" data-tab="draft">③ 초안 · 점검</button>
-  <button class="tab" data-tab="profile">회사 프로필</button>
+<!-- ══════════════════════════════ 좌측 단계 레일 ══════════════════════════════
+     탭이 아니라 단계다. 공고함 → 판정 → 초안이 순서를 가진 파이프라인이라는 것을
+     화면 구조로 말한다. 항목은 4개로 고정이며 공고 목록은 여기 오지 않는다. -->
+<nav class="rail">
+  <div class="rail-brand">
+    <b>지원사업 도우미</b>
+    <span>공고 분석 · 신청서 초안</span>
+  </div>
+
+  <div class="rail-lab">진행 단계</div>
+  <div class="steps">
+    <button class="tab active" data-tab="inbox"><span class="step-n">1</span>공고함</button>
+    <button class="tab" data-tab="verdict"><span class="step-n">2</span>자격 판정</button>
+    <button class="tab" data-tab="draft"><span class="step-n">3</span>초안 · 점검</button>
+  </div>
+
+  <div class="rail-lab">내 정보</div>
+  <div class="steps">
+    <button class="tab" data-tab="profile"><span class="step-n">회</span>회사 프로필</button>
+  </div>
+
+  <!-- 지금 붙들고 있는 공고. 단계를 넘어가도 컨텍스트가 끊기지 않게 한다. -->
+  <div class="rail-ctx" id="rail-ctx" hidden>
+    <div class="k">지금 보는 공고</div>
+    <div class="t" id="ctx-title"></div>
+    <span class="badge" id="ctx-badge"></span>
+  </div>
+
+  <div class="rail-foot"><div class="status" id="status"></div></div>
 </nav>
 
+<!-- ══════════════════════════════ 본문 ══════════════════════════════ -->
 <main>
 
   <!-- ────────────────────────────────── ① 공고함 ────────────────────────────────── -->
   <section id="tab-inbox" class="panel active">
+    <div class="page-head">
+      <h1>공고함</h1>
+      <p class="sub">기업마당 · K-Startup 공고를 모아 중복을 없애고, 신청 가능 여부를 판정합니다.</p>
+    </div>
     <div class="toolbar">
       <button id="btn-ingest" class="primary">공고 새로 수집</button>
       <label>지역 <input id="f-region" type="text" placeholder="예: 광주" size="8"></label>
@@ -67,30 +90,44 @@
         <span id="v-overall" class="badge"></span>
         <span id="v-schedule" class="dday"></span>
         <button id="btn-rejudge">다시 판정</button>
+        <button id="btn-to-draft" class="primary">이 공고로 초안 만들기</button>
       </div>
       <p id="v-note" class="log"></p>
 
-      <h3>사업 개요</h3>
-      <dl id="v-overview" class="overview"></dl>
+      <div class="split">
+        <div>
+          <!-- 요건별 판정이 이 화면의 주인공이다. 사업 개요보다 위에 둔다. -->
+          <h3>요건별 판정</h3>
+          <table class="grid">
+            <thead>
+              <tr><th>요건</th><th>우리 회사</th><th>판정</th><th>근거 (공고문 원문)</th></tr>
+            </thead>
+            <tbody id="v-rows"></tbody>
+          </table>
 
-      <h3>요건별 판정</h3>
-      <table class="grid">
-        <thead>
-          <tr><th>요건</th><th>우리 회사</th><th>판정</th><th>근거 (공고문 원문)</th></tr>
-        </thead>
-        <tbody id="v-rows"></tbody>
-      </table>
+          <!-- 오픈API summary 원문은 길다. 접어서 요건표를 밀어내지 않게 한다. -->
+          <details class="fold">
+            <summary>사업 개요</summary>
+            <dl id="v-overview" class="overview"></dl>
+          </details>
+        </div>
 
-      <h3>제출서류 체크리스트 <span id="v-docs-progress" class="count"></span></h3>
-      <div id="v-checklist" class="checklist"></div>
-      <p id="v-docs-note" class="log"></p>
-
-      <h3>신청 일정</h3>
-      <ul id="v-sched" class="plain"></ul>
-
-      <h3>공고 첨부파일</h3>
-      <ul id="v-files" class="files"></ul>
-      <button id="btn-to-draft" class="primary">이 공고로 신청서 초안 만들기</button>
+        <aside class="sidecol">
+          <div class="box">
+            <h3>제출서류 <span id="v-docs-progress" class="count"></span></h3>
+            <div id="v-checklist" class="checklist"></div>
+            <p id="v-docs-note" class="log"></p>
+          </div>
+          <div class="box">
+            <h3>신청 일정</h3>
+            <ul id="v-sched" class="plain"></ul>
+          </div>
+          <div class="box">
+            <h3>공고 첨부</h3>
+            <ul id="v-files" class="files"></ul>
+          </div>
+        </aside>
+      </div>
     </div>
   </section>
 
@@ -128,7 +165,7 @@
         <aside class="issues">
           <h3>글 점검</h3>
           <p class="hint">오탈자와 문서 간 수치 불일치만 봅니다.<br>
-             제출서류는 ‘자격 판정’ 탭의 체크리스트에서 챙기세요.</p>
+             제출서류는 ‘자격 판정’ 단계의 체크리스트에서 챙기세요.</p>
           <div id="d-issues"><p class="empty small">‘제출 전 점검’을 누르세요.</p></div>
         </aside>
       </div>
@@ -137,13 +174,17 @@
 
   <!-- ────────────────────────────────── 회사 프로필 ────────────────────────────────── -->
   <section id="tab-profile" class="panel">
-    <p class="hint">여기 값이 자격 판정과 신청서 초안의 기준이 됩니다. 고치면 이전 판정은 자동으로 다시 계산됩니다.</p>
+    <div class="page-head">
+      <h1>회사 프로필</h1>
+      <p class="sub">여기 값이 자격 판정과 신청서 초안의 기준이 됩니다. 고치면 이전 판정은 자동으로 다시 계산됩니다.</p>
+    </div>
     <form id="profile-form" class="form"></form>
     <button id="btn-save-profile" class="primary">프로필 저장</button>
     <span id="profile-saved" class="count"></span>
   </section>
 
 </main>
+</div>
 
 <script src="app.js"></script>
 </body>

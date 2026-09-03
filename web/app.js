@@ -229,6 +229,9 @@ async function openNotice(item) {
   $("verdict-empty").hidden = true;
   $("verdict-body").hidden = false;
   $("v-title").textContent = item.title;
+  // 좌측 레일 컨텍스트 — 단계를 넘어가도 어느 공고를 붙들고 있는지 안 끊기게 한다.
+  $("ctx-title").textContent = item.title;
+  $("rail-ctx").hidden = false;
   // 출처를 분명히 밝힌다. 어느 기관 오픈API에서 받은 자료인지, 원문은 어디인지를
   // 기관별로 따로 건다 — 통합된 공고는 양쪽 원문이 다 있어야 대조가 된다.
   const links = (item.source_links || []).length
@@ -280,6 +283,8 @@ async function loadEligibility(refresh) {
                              (refresh ? "?refresh=1" : ""));
     $("v-overall").textContent = report.overall;
     $("v-overall").className = "badge " + report.overall;
+    $("ctx-badge").textContent = report.overall;
+    $("ctx-badge").className = "badge " + report.overall;
     $("v-schedule").textContent = report.schedule.label || "";
     $("v-note").textContent = report.note || "";
 

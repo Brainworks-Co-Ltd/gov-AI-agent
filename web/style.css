@@ -151,34 +151,83 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
 
 /* ═══════════════════════════════════════════════════ ③ 화면별 */
 
-/* ───────────────────────────────────────── 헤더 · 탭 */
+/* ───────────────────────────────── 셸 · 좌측 단계 레일 */
 
-.top {
-  display: flex; justify-content: space-between; align-items: flex-start; gap: 20px;
-  padding: 20px 28px 18px; background: var(--card); border-bottom: 1px solid var(--border-subtle);
-}
-.top h1 { margin: 0; font-size: 20px; color: var(--foreground); letter-spacing: -.03em; }
-.sub { margin: 5px 0 0; color: var(--muted-foreground); font-size: 13px; }
-.status { color: var(--muted-foreground); font-size: 12px; text-align: right; white-space: nowrap; }
-.status .off { color: var(--no-fg); font-weight: 600; }
-.status .on { color: var(--ok-fg); font-weight: 600; }
+/* 탭이 아니라 단계다. 파이프라인이라는 걸 화면 구조로 말한다. */
+.shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh; }
+.shell > * { min-width: 0; }
 
-.tabs {
-  display: flex; gap: 6px; padding: 10px 28px; background: var(--card);
-  border-bottom: 1px solid var(--border-subtle);
+.rail {
+  background: var(--card); border-right: 1px solid var(--border-subtle);
+  display: flex; flex-direction: column;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
 }
-.tab {
-  padding: 8px 16px; border: 1px solid transparent; border-radius: var(--radius-sm);
+.rail-brand { padding: 20px 18px 6px; }
+.rail-brand b { display: block; font-size: 15px; color: var(--foreground); letter-spacing: -.02em; }
+.rail-brand span { font-size: 11px; color: var(--muted-foreground); }
+.rail-lab {
+  padding: 16px 20px 6px; font-size: 11px; font-weight: 700;
+  letter-spacing: .04em; color: var(--muted-foreground);
+}
+.steps { padding: 0 12px; display: flex; flex-direction: column; gap: 2px; }
+
+/* .tab 은 app.js 가 data-tab / .active 로 다루는 셀렉터라 이름을 유지한다. */
+.steps .tab {
+  display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+  padding: 9px 10px; border: 1px solid transparent; border-radius: var(--radius-sm);
   background: none; box-shadow: none; cursor: pointer;
-  font-size: 13.5px; font-weight: 500; color: var(--muted-foreground);
+  font-size: 13px; font-weight: 500; color: var(--muted-foreground);
 }
-.tab:hover { background: var(--muted); color: var(--foreground); border-color: transparent; }
-.tab.active {
+.steps .tab:hover { background: var(--muted); color: var(--foreground); border-color: transparent; }
+.steps .tab.active {
   background: var(--accent); color: var(--accent-foreground);
   font-weight: 700; border-color: var(--border);
 }
+.step-n {
+  width: 20px; height: 20px; flex: none; border-radius: var(--radius-xs);
+  display: grid; place-items: center; font-size: 11px; font-weight: 700;
+  background: var(--secondary); color: var(--muted-foreground);
+}
+.steps .tab.active .step-n { background: var(--primary); color: var(--primary-foreground); }
 
-main { padding: 24px 28px 60px; max-width: 1180px; }
+/* 단계를 넘어가도 어느 공고를 붙들고 있는지 안 끊기게 한다. */
+.rail-ctx { margin-top: auto; padding: 14px 16px 12px; border-top: 1px solid var(--border-subtle); }
+.rail-ctx .k { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; color: var(--muted-foreground); }
+.rail-ctx .t { font-size: 12px; font-weight: 600; color: var(--foreground); line-height: 1.45; margin: 5px 0 7px; }
+/* 공고 미선택 시엔 rail-ctx 가 숨겨져 있으므로 상태 줄이 바닥을 잡는다. */
+.rail-foot { margin-top: auto; padding: 12px 16px 16px; border-top: 1px solid var(--border-subtle); }
+.rail-ctx + .rail-foot { border-top: none; padding-top: 0; }
+
+.status { color: var(--muted-foreground); font-size: 11.5px; line-height: 1.7; }
+.status .off { color: var(--no-fg); font-weight: 600; }
+.status .on { color: var(--ok-fg); font-weight: 600; }
+
+/* ───────────────────────────────────────── 본문 */
+
+main { padding: 24px 28px 60px; max-width: 1240px; }
+.page-head { margin-bottom: 18px; }
+.page-head h1 { margin: 0; font-size: 20px; color: var(--foreground); letter-spacing: -.03em; }
+.sub { margin: 5px 0 0; color: var(--muted-foreground); font-size: 13px; }
+
+/* 판정 화면 우측 열 — 서류·일정·첨부를 세로 스택에서 빼내 요건표를 위로 올린다 */
+.sidecol { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 14px; }
+.sidecol .box { padding: 14px 15px; min-width: 0; }
+.sidecol h3 { margin: 0 0 10px; font-size: 12.5px; }
+.sidecol ul.files { flex-direction: column; flex-wrap: nowrap; gap: 6px; min-width: 0; }
+.sidecol ul.files li { min-width: 0; }
+.sidecol ul.files a { display: flex; width: 100%; max-width: 100%; min-width: 0; }
+.sidecol ul.files .fname { flex: 1; min-width: 0; }
+
+/* 사업 개요는 오픈API 원문이라 길다. 접어서 요건표를 밀어내지 않게 한다. */
+.fold {
+  margin-top: 20px; background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-card);
+}
+.fold > summary {
+  padding: 11px 16px; cursor: pointer; font-size: 13px;
+  font-weight: 600; color: var(--foreground);
+}
+.fold .overview { padding: 0 16px 14px; margin: 0; }
 .panel { display: none; }
 .panel.active { display: block; }
 
