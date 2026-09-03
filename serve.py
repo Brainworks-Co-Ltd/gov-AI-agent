@@ -81,6 +81,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", _STATIC_TYPES[ext])
         self.send_header("Content-Length", str(len(data)))
+        # 캐시 헤더가 없으면 브라우저가 제멋대로 오래 들고 있어서, 배포한 뒤에도
+        # 옛 화면이 그대로 보인다. 파일 몇 개짜리 데모라 매번 새로 받게 한다.
+        self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(data)
         return True

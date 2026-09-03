@@ -125,12 +125,23 @@ function renderTally(data) {
   const t = data.tally || {};
   const left = data.total - data.judged;
   $("inbox-count").textContent = `사업 ${data.total}건`;
+  $("inbox-tally").dataset.left = left;
   $("inbox-tally").innerHTML =
     `<span class="badge 가능">가능 ${t["가능"] || 0}</span>` +
     `<span class="badge 확인필요">확인필요 ${t["확인필요"] || 0}</span>` +
     `<span class="badge 불가">불가 ${t["불가"] || 0}</span>` +
     (left > 0 ? `<span class="badge 미판정">미판정 ${left}</span>` : "");
   $("btn-judge-all").disabled = left === 0;
+
+  // 미판정이 남아 있으면 묻지 않고 앞에서부터 판정을 시작한다.
+  // 한 건에 3.3초라 전건(수백 건)은 수십 분이 걸린다. 그래서 자동으로는 화면 맨
+  // 위 AUTO_JUDGE 건만 채우고, 나머지는 '목록 전체 판정' 버튼에 맡긴다.
+  // 같은 목록에서 두 번 돌지 않도록 필터 조합을 키로 기억한다.
+  const key = JSON.stringify(currentFilter());
+  if (left > 0 && !judging && autoKey !== key) {
+    autoKey = key;
+    judgeAll(AUTO_JUDGE);
+  }
 }
 
 async function loadNotices() {
@@ -159,16 +170,21 @@ async function loadNotices() {
  * 중간에 멈출 수도 있다.
  */
 let judging = false;
+let autoKey = null;          // 자동 판정을 이미 돌린 필터 조합
+const AUTO_JUDGE = 12;       // 자동으로 채우는 건수 (배치 4 × 3회 ≈ 10초)
 
-async function judgeAll() {
+async function judgeAll(max = Infinity) {
   if (judging) return;
   judging = true;
   $("btn-judge-all").hidden = true;
   $("btn-judge-stop").hidden = false;
 
   try {
-    while (judging) {
-      const result = await post("/api/judge", { ...currentFilter(), limit: 4 });
+    let judged = 0;
+    while (judging && judged < max) {
+      const limit = Math.min(4, max - judged);
+      const result = await post("/api/judge", { ...currentFilter(), limit });
+      judged += result.judged.length;
       // 받은 판정을 카드에 바로 칠한다 (전체를 다시 불러오지 않는다).
       result.judged.forEach((j) => {
         const el = document.querySelector(`.card[data-id="${CSS.escape(j.id)}"] .badge`);
@@ -181,7 +197,10 @@ async function judgeAll() {
         `판정 중… ${result.done}/${result.total}건 (남은 ${result.remaining}건)`;
       if (!result.remaining || !result.judged.length) break;
     }
-    $("ingest-log").textContent = judging ? "판정을 마쳤습니다." : "판정을 멈췄습니다.";
+    const rest = Number($("inbox-tally").dataset.left || 0) - judged;
+    $("ingest-log").textContent = !judging ? "판정을 멈췄습니다."
+      : max === Infinity || rest <= 0 ? "판정을 마쳤습니다."
+      : `앞에서 ${judged}건을 판정했습니다. 남은 ${rest}건은 ‘목록 전체 판정’을 누르세요.`;
   } catch (e) {
     $("ingest-log").textContent = "판정 실패 — " + e.message;
   } finally {
@@ -192,7 +211,7 @@ async function judgeAll() {
   }
 }
 
-$("btn-judge-all").addEventListener("click", judgeAll);
+$("btn-judge-all").addEventListener("click", () => judgeAll());
 $("btn-judge-stop").addEventListener("click", () => { judging = false; });
 
 $("btn-ingest").addEventListener("click", async () => {
@@ -577,7 +596,8 @@ $("btn-save-profile").addEventListener("click", async () => {
   try {
     renderProfile(await post("/api/profile", payload));
     $("profile-saved").textContent =
-      "저장했습니다. 프로필이 바뀌었으므로 판정은 다시 계산됩니다.";
+      "저장했습니다. 프로필이 바뀌었으므로 판정을 다시 계산합니다.";
+    autoKey = null;
     await loadNotices();
   } catch (e) {
     $("profile-saved").textContent = "저장 실패 — " + e.message;

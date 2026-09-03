@@ -52,6 +52,8 @@
     </div>
     <div class="toolbar">
       <button id="btn-ingest" class="primary">공고 새로 수집</button>
+      <button id="btn-judge-all">목록 전체 판정</button>
+      <button id="btn-judge-stop" hidden>중지</button>
       <label>지역 <input id="f-region" type="text" placeholder="예: 광주" size="8"></label>
       <label>마감
         <select id="f-within">
@@ -69,8 +71,6 @@
           <option value="불가">불가</option>
         </select>
       </label>
-      <button id="btn-judge-all" class="primary">목록 전체 판정</button>
-      <button id="btn-judge-stop" hidden>중지</button>
       <span id="inbox-count" class="count"></span>
     </div>
     <p id="inbox-tally" class="tally"></p>
