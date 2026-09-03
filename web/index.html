@@ -19,16 +19,18 @@
     <span>공고 분석 · 신청서 초안</span>
   </div>
 
+  <!-- 프로필이 판정의 기준값이라 여기가 출발점이다. 다만 한 번 세팅하고 마는
+       일이라, 공고마다 되풀이하는 1·2·3 파이프라인과는 무리를 나눠 둔다. -->
+  <div class="rail-lab">먼저 할 일</div>
+  <div class="steps">
+    <button class="tab" data-tab="profile"><span class="step-n">회</span>회사 프로필</button>
+  </div>
+
   <div class="rail-lab">진행 단계</div>
   <div class="steps">
     <button class="tab active" data-tab="inbox"><span class="step-n">1</span>공고함</button>
     <button class="tab" data-tab="verdict"><span class="step-n">2</span>자격 판정</button>
     <button class="tab" data-tab="draft"><span class="step-n">3</span>초안 · 점검</button>
-  </div>
-
-  <div class="rail-lab">내 정보</div>
-  <div class="steps">
-    <button class="tab" data-tab="profile"><span class="step-n">회</span>회사 프로필</button>
   </div>
 
   <!-- 지금 붙들고 있는 공고. 단계를 넘어가도 컨텍스트가 끊기지 않게 한다. -->
