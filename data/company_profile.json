@@ -1,0 +1,35 @@
+{
+  "name": "한빛정밀전자(주)",
+  "biz_no": "410-81-00000",
+  "industry": "전자부품 제조업",
+  "ksic": "C262",
+  "founded": "2019-03-11",
+  "region": "광주광역시",
+  "region_detail": "광산구",
+  "employees": 8,
+  "revenue_krw": 1850000000,
+  "company_type": "중소기업",
+  "ceo": "김하늘",
+  "docs_on_hand": [
+    "사업자등록증",
+    "법인등기부등본",
+    "국세납세증명서",
+    "지방세납세증명서",
+    "중소기업확인서",
+    "재무제표(직전 2개년)",
+    "4대보험 가입자명부"
+  ],
+  "strengths": "차량용 전자제어 모듈의 정밀 SMT 실장과 인라인 검사 공정을 자체 보유하고 있으며, 다품종 소량 생산에서도 불량률을 낮게 유지해 온 것이 강점이다. 다만 생산 데이터가 수기로 관리되고 있어 공정 개선의 근거를 확보하기 어렵다.",
+  "tax_arrears": false,
+  "closed": false,
+  "recent_layoffs": false,
+  "root_tech": false,
+  "women_owned": false,
+  "smart_factory": false,
+  "export_usd": 0,
+  "prior_support": [],
+  "extra": {
+    "주생산품": "차량용 전자제어 모듈(ECU) PCB 어셈블리",
+    "설비": "SMT 라인 2기, AOI 검사기 1기"
+  }
+}

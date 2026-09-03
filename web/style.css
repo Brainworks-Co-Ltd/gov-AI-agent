@@ -1,0 +1,198 @@
+/* 화면 스타일 — 외부 폰트·CDN 없이 동작하도록 시스템 폰트만 쓴다.
+   (본선 현장에서 인터넷이 끊겨도 화면이 그대로 떠야 한다) */
+
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --line: #e3e6ea;
+  --text: #1c2024;
+  --muted: #6b7280;
+  --accent: #1f5fbf;
+  --ok-bg: #e7f5ec;    --ok-fg: #14713b;
+  --no-bg: #fdeaea;    --no-fg: #b3261e;
+  --chk-bg: #fff5e0;   --chk-fg: #96650a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ───────────────────────────────────────────────────────── 헤더 · 탭 */
+
+.top {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 20px;
+  padding: 18px 28px; background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.top h1 { margin: 0; font-size: 19px; }
+.sub { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.status { color: var(--muted); font-size: 12px; text-align: right; white-space: nowrap; }
+.status .off { color: var(--no-fg); }
+.status .on { color: var(--ok-fg); }
+
+.tabs { display: flex; gap: 2px; padding: 0 28px; background: var(--panel);
+        border-bottom: 1px solid var(--line); }
+.tab {
+  padding: 11px 18px; border: none; background: none; cursor: pointer;
+  font-size: 14px; color: var(--muted); border-bottom: 2px solid transparent;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+main { padding: 22px 28px 60px; max-width: 1180px; }
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ───────────────────────────────────────────────────────── 공통 요소 */
+
+button {
+  padding: 7px 14px; border: 1px solid var(--line); border-radius: 5px;
+  background: var(--panel); cursor: pointer; font-size: 13px; font-family: inherit;
+}
+button:hover { border-color: #c3c8cf; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.primary:hover { background: #1a4f9f; }
+button:disabled { opacity: .55; cursor: default; }
+
+.toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+           margin-bottom: 12px; }
+.toolbar label { color: var(--muted); font-size: 13px; }
+input[type=text], input[type=number], select, textarea {
+  padding: 6px 8px; border: 1px solid var(--line); border-radius: 5px;
+  font-family: inherit; font-size: 13px; background: #fff; color: var(--text);
+}
+.count { color: var(--muted); font-size: 12px; }
+.log { color: var(--muted); font-size: 12px; margin: 6px 0; min-height: 16px;
+       white-space: pre-line; }
+.empty { color: var(--muted); padding: 40px 0; text-align: center; }
+.empty.small { padding: 12px 0; text-align: left; font-size: 13px; }
+.hint { color: var(--muted); font-size: 13px; margin-top: 0; }
+
+h2 { font-size: 17px; margin: 0 0 4px; }
+h3 { font-size: 14px; margin: 22px 0 8px; }
+.meta { color: var(--muted); font-size: 12px; margin: 0; }
+
+/* ───────────────────────────────────────────────────── ① 공고함 카드 */
+
+.cards { display: grid; gap: 10px; }
+.card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
+  padding: 13px 16px; cursor: pointer; display: flex; align-items: center; gap: 14px;
+}
+.card:hover { border-color: var(--accent); }
+.card .dday {
+  min-width: 62px; text-align: center; font-weight: 700; font-size: 13px;
+  color: var(--accent);
+}
+.card .dday.urgent { color: var(--no-fg); }
+.card .grow { flex: 1; min-width: 0; }
+.card .title { font-weight: 600; }
+.card .line2 { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+.badge {
+  display: inline-block; padding: 2px 9px; border-radius: 11px;
+  font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+.badge.가능 { background: var(--ok-bg); color: var(--ok-fg); }
+.badge.불가 { background: var(--no-bg); color: var(--no-fg); }
+.badge.확인필요 { background: var(--chk-bg); color: var(--chk-fg); }
+.badge.미판정 { background: #eef0f3; color: var(--muted); }
+
+.tag {
+  display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11px;
+  background: #eaf1fb; color: var(--accent); margin-left: 6px;
+}
+
+/* ───────────────────────────────────────────────────── ② 판정 리포트 */
+
+.notice-head { margin-bottom: 14px; }
+.verdict-summary { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
+.verdict-summary .badge { font-size: 14px; padding: 4px 14px; }
+.dday { color: var(--accent); font-weight: 700; }
+
+.grid { width: 100%; border-collapse: collapse; background: var(--panel);
+        border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.grid th, .grid td { padding: 9px 12px; text-align: left; vertical-align: top;
+                     border-bottom: 1px solid var(--line); font-size: 13px; }
+.grid th { background: #fafbfc; color: var(--muted); font-weight: 600; }
+.grid tr:last-child td { border-bottom: none; }
+.grid .quote { color: var(--muted); font-size: 12px; font-style: normal; }
+.grid .reason { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+ul.plain { margin: 0; padding-left: 18px; }
+ul.plain li { margin: 3px 0; }
+
+/* 첨부파일 — 담당자가 실제로 눌러서 받는 링크라 버튼처럼 보이게 한다. */
+ul.files { list-style: none; margin: 0; padding: 0;
+           display: flex; flex-wrap: wrap; gap: 8px; }
+ul.files li { margin: 0; }
+ul.files a {
+  display: inline-flex; align-items: center; gap: 7px; max-width: 460px;
+  padding: 7px 12px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--text); text-decoration: none; font-size: 13px;
+}
+ul.files a:hover { border-color: var(--accent); color: var(--accent); }
+ul.files .kind {
+  flex: none; padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 700;
+  background: #eef0f3; color: var(--muted);
+}
+/* 신청서 서식은 초안을 옮겨 담을 바로 그 파일이라 눈에 띄어야 한다. */
+ul.files .kind.서식 { background: #eaf1fb; color: var(--accent); }
+ul.files .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ul.files .none { color: var(--muted); font-size: 13px; }
+
+/* 서식의 '값만 채우는 칸' 목록 */
+.fields { color: var(--muted); font-size: 12px; margin: 8px 0 0; line-height: 2; }
+.fields .chip {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  background: #eef0f3; color: var(--text); font-size: 12px;
+}
+
+/* ───────────────────────────────────────────────────── ③ 초안 · 점검 */
+
+.split { display: grid; grid-template-columns: 1fr 340px; gap: 18px; align-items: start; }
+.sections { display: grid; gap: 14px; }
+.section {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
+  padding: 12px 14px;
+}
+.section h4 { margin: 0 0 3px; font-size: 14px; }
+.section .src { color: var(--muted); font-size: 11px; margin-bottom: 7px; }
+.section textarea {
+  width: 100%; min-height: 130px; resize: vertical; line-height: 1.65;
+}
+
+.issues { background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
+          padding: 12px 14px; position: sticky; top: 14px; }
+.issues h3 { margin-top: 0; }
+.issue { border-left: 3px solid var(--line); padding: 6px 0 6px 10px; margin-bottom: 10px; }
+.issue.오류 { border-left-color: var(--no-fg); }
+.issue.경고 { border-left-color: var(--chk-fg); }
+.issue.정보 { border-left-color: var(--accent); }
+.issue .where { font-size: 11px; color: var(--muted); }
+.issue .msg { font-size: 13px; }
+.issue .fix { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* ───────────────────────────────────────────────────────── 프로필 폼 */
+
+.form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 18px;
+        background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
+        padding: 16px; margin-bottom: 14px; }
+.form .field { display: flex; flex-direction: column; gap: 3px; }
+.form .field.wide { grid-column: 1 / -1; }
+.form label { font-size: 12px; color: var(--muted); }
+.form textarea { min-height: 70px; resize: vertical; }
+.form .check { flex-direction: row; align-items: center; gap: 7px; }
+.form .check label { font-size: 13px; color: var(--text); }
+
+@media (max-width: 900px) {
+  .split, .two-col { grid-template-columns: 1fr; }
+  .form { grid-template-columns: 1fr 1fr; }
+}

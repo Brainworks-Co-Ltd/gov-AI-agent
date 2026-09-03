@@ -1,0 +1,140 @@
+"""하이퍼클로바X(CLOVA Studio) 실제 호출 부품.
+
+네이버클라우드 CLOVA Studio Chat Completions v3 REST API를 부른다.
+하이퍼클로바X는 네이버 서버에서 돌아가므로, 우리는 인터넷으로 요청만 보낸다
+(우리 GPU 불필요). 표준 라이브러리(urllib)만 사용 — 추가 설치 없음.
+
+API 키는 프로젝트 폴더의 clova_api_key.txt 파일에서 읽는다.
+그 파일은 절대 외부에 공유하지 말 것 (.gitignore로 제외됨).
+"""
+from __future__ import annotations
+import json
+import os
+import uuid
+import urllib.request
+import urllib.error
+
+# 사용할 모델. 테스트 앱에서 다른 모델만 켜져 있으면 이 값을 바꾼다.
+#   - HCX-DASH-002 : 가볍고 빠름 (테스트에 적합) — Structured Outputs 미지원
+#   - HCX-005      : 상위 모델(이미지 이해 가능)
+MODEL = "HCX-DASH-002"
+API_URL = "https://clovastudio.stream.ntruss.com/v3/chat-completions/" + MODEL
+
+# Structured Outputs(JSON 스키마 강제) 전용 모델 — DASH-002는 responseFormat을 지원하지
+# 않아 400 에러가 난다(직접 테스트 확인). HCX-007만 지원, thinking을 꺼야 같이 쓸 수 있다.
+STRUCTURED_MODEL = "HCX-007"
+STRUCTURED_API_URL = "https://clovastudio.stream.ntruss.com/v3/chat-completions/" + STRUCTURED_MODEL
+
+_KEY_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "clova_api_key.txt")
+_PLACEHOLDER = "여기에-발급받은-API-키를-붙여넣고-저장하세요"
+
+
+def _load_key() -> str | None:
+    # 컨테이너 배포 시에는 이미지에 키 파일을 넣지 않고 환경변수로 주입한다
+    # (docker run -e CLOVA_API_KEY=... ). 로컬 개발은 기존 파일 방식 그대로 동작.
+    env_key = os.environ.get("CLOVA_API_KEY")
+    if env_key:
+        return env_key
+    try:
+        with open(_KEY_FILE, encoding="utf-8") as f:
+            key = f.read().strip()
+    except FileNotFoundError:
+        return None
+    # 안내 문구가 그대로 남아 있으면 '키 없음'으로 본다. 완전 일치가 아니라 접두사로
+    # 보는 이유: 안내 문구를 조금 고쳐 두면 그 한글이 그대로 Authorization 헤더에 실려
+    # 'latin-1 codec' 오류라는 엉뚱한 메시지로 터진다. tools/keys.py와 같은 규칙.
+    if not key or key.startswith("여기에") or key == _PLACEHOLDER:
+        return None
+    return key
+
+
+def is_configured() -> bool:
+    """API 키가 준비돼 있으면 True (없으면 프로그램은 가짜 답으로 동작)."""
+    return _load_key() is not None
+
+
+def get_key() -> str | None:
+    """다른 모듈(예: 임베딩 호출기)에서 같은 키를 재사용할 때 쓴다."""
+    return _load_key()
+
+
+def chat(system: str, user: str, max_tokens: int = 512,
+         temperature: float = 0.2) -> str:
+    """하이퍼클로바X에 요청을 보내고 생성된 텍스트를 돌려받는다."""
+    key = _load_key()
+    if not key:
+        raise RuntimeError("clova_api_key.txt 에 API 키가 없습니다.")
+
+    body = json.dumps({
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "maxTokens": max_tokens,
+        "temperature": temperature,
+        "topP": 0.8,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(API_URL, data=body, method="POST")
+    req.add_header("Authorization", "Bearer " + key)
+    req.add_header("Content-Type", "application/json")
+    req.add_header("X-NCP-CLOVASTUDIO-REQUEST-ID", uuid.uuid4().hex)
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "ignore")[:300]
+        raise RuntimeError(f"HTTP {e.code} — {detail}") from None
+
+    # 상태 코드 20000 이 성공. 그 외에는 원인 메시지를 그대로 알려준다.
+    status = data.get("status", {})
+    if status.get("code") != "20000":
+        raise RuntimeError(f"{status.get('code')}: {status.get('message')}")
+
+    # 생성된 텍스트 위치: result.message.content
+    return data["result"]["message"]["content"]
+
+
+def chat_structured(system: str, user: str, schema: dict, max_tokens: int = 512,
+                     temperature: float = 0.2) -> dict:
+    """Structured Outputs(JSON 스키마 강제)로 호출한다.
+
+    번호·머리기호·군더더기 문장이 섞여 나오는 문제를 프롬프트가 아니라 API 차원에서
+    막는다 — 응답이 schema 형태의 JSON으로 강제되므로, 텍스트 파싱/정규식 후처리가
+    필요 없다. HCX-007 전용(§STRUCTURED_MODEL 주석 참고).
+    """
+    key = _load_key()
+    if not key:
+        raise RuntimeError("clova_api_key.txt 에 API 키가 없습니다.")
+
+    body = json.dumps({
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "responseFormat": {"type": "json", "schema": schema},
+        "thinking": {"effort": "none"},  # Structured Outputs와 추론 모드는 병행 불가
+        "maxCompletionTokens": max_tokens,
+        "temperature": temperature,
+        "topP": 0.8,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(STRUCTURED_API_URL, data=body, method="POST")
+    req.add_header("Authorization", "Bearer " + key)
+    req.add_header("Content-Type", "application/json")
+    req.add_header("X-NCP-CLOVASTUDIO-REQUEST-ID", uuid.uuid4().hex)
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "ignore")[:300]
+        raise RuntimeError(f"HTTP {e.code} — {detail}") from None
+
+    status = data.get("status", {})
+    if status.get("code") != "20000":
+        raise RuntimeError(f"{status.get('code')}: {status.get('message')}")
+
+    content = data["result"]["message"]["content"]
+    return json.loads(content)

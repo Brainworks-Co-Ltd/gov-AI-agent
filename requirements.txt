@@ -1,0 +1,6 @@
+# 이 프로젝트는 파이썬 표준 라이브러리만 사용합니다 (pip install 불필요).
+#   - urllib.request : 오픈API / 하이퍼클로바X 호출
+#   - sqlite3        : 공고·판정·초안 저장
+#   - http.server    : 웹 서버
+#   - difflib        : 중복 공고 유사도 계산
+# 필요한 것은 Python 3.10 이상 하나뿐입니다.

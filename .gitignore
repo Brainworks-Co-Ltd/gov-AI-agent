@@ -1,0 +1,9 @@
+# API 키는 절대 커밋하지 않는다
+*_key.txt
+clova_api_key.txt
+
+# 자동 생성물
+data/app.db
+__pycache__/
+*.pyc
+data/forms/
