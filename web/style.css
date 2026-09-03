@@ -160,7 +160,7 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
 .field { display: flex; flex-direction: column; gap: 4px; }
 
 /* 흰 상자 — 패널·사이드바가 공유하는 바탕 */
-.box, .issues, .form, .section {
+.box, .form, .section {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
 }
@@ -253,6 +253,15 @@ main { padding: 24px 28px 60px; max-width: 1240px; }
 
 .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .toolbar label { color: var(--muted-foreground); font-size: 13px; }
+/* 네이티브 파일 인풋은 브라우저가 그린 영어 버튼('Choose Files')이 그대로 나와
+   한글 화면에서 혼자 논다. 인풋을 감추고 label 을 버튼처럼 쓴다.
+   필터 label 에는 for 가 없으므로 [for] 만으로 갈린다 — 새 클래스가 필요 없다. */
+.toolbar label[for] {
+  padding: 8px 15px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--card); color: var(--muted-foreground); font-weight: 600;
+  cursor: pointer; box-shadow: var(--shadow-card); transition: border-color .12s, color .12s;
+}
+.toolbar label[for]:hover { border-color: var(--border-hover); color: var(--foreground); }
 /* 툴바는 '데이터를 바꾸는 버튼' 다음에 '보기를 좁히는 필터'가 온다. 그 경계를
    첫 label 앞의 세로선으로 긋는다. 집계는 흐름의 끝이라 오른쪽 끝으로 민다. */
 .toolbar > label:first-of-type { margin-left: 4px; padding-left: 16px; border-left: 1px solid var(--border-subtle); }
@@ -357,8 +366,6 @@ ul.files .none { color: var(--muted-foreground); font-size: 13px; }
 .section .src { color: var(--muted-foreground); font-size: 11px; margin-bottom: 8px; }
 .section textarea { width: 100%; min-height: 130px; resize: vertical; line-height: 1.7; }
 
-.issues { padding: 14px 16px; position: sticky; top: 14px; }
-.issues h3 { margin-top: 0; }
 /* 심각도는 왼쪽 색 막대로 구분한다. 목록이 길어져도 훑어보면 걸린다. */
 .issue {
   border-left: 3px solid var(--border); padding: 8px 0 8px 12px; margin-bottom: 12px;
@@ -375,10 +382,10 @@ ul.files .none { color: var(--muted-foreground); font-size: 13px; }
 /* 옛 토큰(--line/--bg/--accent)으로 쓰인 것을 지금 이름으로 옮겼다.
    말풍선은 카드(#fff) 위에 얹히므로 상대 말은 한 단 내린 면(--muted)을 쓰고,
    내 말은 채운 파랑(--primary)을 쓴다. */
-.issues h3 + .hint { margin-top: 0; }
+/* 카드 안에 또 테두리 상자를 두면 상자가 겹쳐 보인다. 말풍선 자체가 구조를
+   만드므로 기록 영역에는 테두리를 두지 않고 아래 입력칸과 간격으로만 가른다. */
 .chat-log {
-  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px;
-  max-height: 260px; overflow-y: auto; margin-bottom: 8px;
+  max-height: 260px; overflow-y: auto; margin-bottom: 10px;
   display: flex; flex-direction: column; gap: 7px;
 }
 .chat-msg { font-size: 13px; line-height: 1.6; padding: 7px 10px; border-radius: var(--radius-sm);
@@ -388,8 +395,9 @@ ul.files .none { color: var(--muted-foreground); font-size: 13px; }
 .chat-msg.bot { align-self: flex-start; background: var(--muted); border: 1px solid var(--border-subtle); }
 .chat-changed { font-size: 11px; color: var(--muted-foreground); margin-top: 4px;
                 border-top: 1px solid var(--border-subtle); padding-top: 4px; }
-.chat-input { display: flex; gap: 6px; align-items: flex-end; }
-.chat-input textarea { flex: 1; resize: vertical; line-height: 1.5; }
+.chat-input { display: flex; flex-direction: column; gap: 8px; }
+.chat-input textarea { width: 100%; resize: vertical; line-height: 1.5; }
+.chat-input button { align-self: flex-end; }
 
 /* 대화로 바뀐 항목을 잠깐 표시한다 — 어디가 달라졌는지 글만 봐서는 찾기 어렵다. */
 .section.changed { border-color: var(--primary); box-shadow: 0 0 0 2px var(--ring-soft); }

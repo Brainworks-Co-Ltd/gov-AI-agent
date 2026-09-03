@@ -169,23 +169,28 @@
       </div>
       <div class="split">
         <div id="d-sections" class="sections"></div>
-        <aside class="issues">
-          <h3>글 점검</h3>
-          <p class="hint">오탈자와 문서 간 수치 불일치만 봅니다.<br>
-             제출서류는 ‘자격 판정’ 단계의 체크리스트에서 챙기세요.</p>
-          <div id="d-issues"><p class="empty small">‘제출 전 점검’을 누르세요.</p></div>
-
-          <h3>말로 고치기</h3>
-          <p class="hint">고칠 곳을 말로 알려 주면 그 항목만 다시 씁니다.<br>
-             예) “기대효과에 숫자 목표를 넣어 줘”, “추진 계획을 단계별로”,
-             “전체적으로 문장을 짧게”</p>
-          <div id="chat-log" class="chat-log">
-            <p class="empty small">무엇을 고칠지 적어 보세요.</p>
+        <!-- 판정 화면 우측 열과 같은 구조. 성격이 다른 두 가지(자동 점검 / 대화)를
+             한 카드에 이어 붙이면 어디까지가 무엇인지 안 보인다. -->
+        <aside class="sidecol">
+          <div class="box">
+            <h3>글 점검</h3>
+            <p class="hint">오탈자와 문서 간 수치 불일치만 봅니다.<br>
+               제출서류는 ‘자격 판정’ 단계의 체크리스트에서 챙기세요.</p>
+            <div id="d-issues"><p class="empty small">‘제출 전 점검’을 누르세요.</p></div>
           </div>
-          <div class="chat-input">
-            <textarea id="chat-text" rows="2"
-                      placeholder="예) 기대효과가 두루뭉술해. 무엇이 얼마나 좋아지는지 넣어 줘"></textarea>
-            <button id="btn-chat-send" class="primary">보내기</button>
+
+          <div class="box">
+            <h3>말로 고치기</h3>
+            <p class="hint">고칠 곳을 말로 알려 주면 그 항목만 다시 씁니다.<br>
+               예) “기대효과에 숫자 목표를 넣어 줘”, “추진 계획을 단계별로”</p>
+            <div id="chat-log" class="chat-log">
+              <p class="empty small">무엇을 고칠지 적어 보세요.</p>
+            </div>
+            <div class="chat-input">
+              <textarea id="chat-text" rows="2"
+                        placeholder="예) 기대효과가 두루뭉술해. 무엇이 얼마나 좋아지는지 넣어 줘"></textarea>
+              <button id="btn-chat-send" class="primary">보내기</button>
+            </div>
           </div>
         </aside>
       </div>
@@ -202,20 +207,25 @@
     <button id="btn-save-profile" class="primary">프로필 저장</button>
     <span id="profile-saved" class="count"></span>
 
-    <h3>기존 사업계획서</h3>
-    <p class="hint">
-      예전에 제출했던 신청서·사업계획서를 올리면 초안을 쓸 때 참고합니다.
-      회사 프로필만으로는 어느 회사에나 해당하는 밋밋한 글이 나오는데,
-      실제 제출본이 있으면 그 회사의 말투와 사업 내용이 살아납니다.<br>
-      hwp · hwpx · docx · zip · txt · md 를 읽습니다. (PDF는 아직 못 읽습니다)
-    </p>
-    <div class="toolbar">
-      <input type="file" id="past-file" multiple
-             accept=".hwp,.hwpx,.docx,.zip,.txt,.md">
-      <button id="btn-upload-past" class="primary">올리기</button>
-      <span id="past-log" class="count"></span>
+    <!-- 프로필 폼과 나란한 별개의 입력이므로 같은 카드 면 위에 올린다.
+         밖에 두면 '프로필 저장' 버튼에 딸린 것처럼 보인다. -->
+    <div class="box">
+      <h3>기존 사업계획서</h3>
+      <p class="hint">
+        예전에 제출했던 신청서·사업계획서를 올리면 초안을 쓸 때 참고합니다.
+        회사 프로필만으로는 어느 회사에나 해당하는 밋밋한 글이 나오는데,
+        실제 제출본이 있으면 그 회사의 말투와 사업 내용이 살아납니다.<br>
+        hwp · hwpx · docx · zip · txt · md 를 읽습니다. (PDF는 아직 못 읽습니다)
+      </p>
+      <div class="toolbar">
+        <input type="file" id="past-file" multiple
+               accept=".hwp,.hwpx,.docx,.zip,.txt,.md" hidden>
+        <label for="past-file">파일 고르기</label>
+        <button id="btn-upload-past" class="primary" disabled>올리기</button>
+        <span id="past-log" class="count"></span>
+      </div>
+      <ul id="past-list" class="files"></ul>
     </div>
-    <ul id="past-list" class="files"></ul>
   </section>
 
 </main>

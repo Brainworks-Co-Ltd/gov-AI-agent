@@ -814,6 +814,14 @@ async function loadPastList() {
   }
 }
 
+// 인풋을 감췄으니 무엇을 골랐는지는 직접 알려 줘야 한다.
+$("past-file").addEventListener("change", () => {
+  const picked = [...($("past-file").files || [])];
+  $("past-log").textContent = !picked.length ? ""
+    : picked.length === 1 ? picked[0].name : `${picked.length}개 선택됨`;
+  $("btn-upload-past").disabled = !picked.length;
+});
+
 $("btn-upload-past").addEventListener("click", async () => {
   const files = [...($("past-file").files || [])];
   if (!files.length) {
