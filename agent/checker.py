@@ -50,9 +50,8 @@ _NOT_A_DOC = ("온라인", "홈페이지", "누리집", "방문", "우편", "이
 # 접수처·이메일 안내문이다 — 실제 552건을 확인했고, 서류 낱말이 든 것도 27건뿐이다).
 # 서류 목록은 첨부된 공고문 파일 안에 있어서 API만으로는 알 수 없다.
 #
-# 그래서 '이 공고가 요구하는 서류'를 다 맞히려 들지 않는다. 대신 어느 사업에나
-# 요구되는 기본 서류를 미리 점검한다. 담당자가 마감 직전에 발급받으러 뛰는 상황을
-# 막는 게 이 점검의 실제 값어치다.
+# 첨부에서도 못 건졌을 때, 어느 사업에나 요구되는 기본 서류라도 짚어 준다.
+# 담당자가 마감 직전에 발급받으러 뛰는 상황을 막는 게 이 점검의 실제 값어치다.
 _COMMON_DOCS = [
     "사업자등록증", "국세납세증명서", "지방세납세증명서", "중소기업확인서", "재무제표",
 ]
@@ -77,19 +76,20 @@ def document_checklist(report: EligibilityReport, profile: CompanyProfile,
                        checked: dict | None = None) -> dict:
     """제출서류를 **체크리스트**로 만든다.
 
-    경고 목록이 아니라 체크리스트인 이유: 서류를 실제로 뗐는지는 사람만 안다.
+    경고 목록이 아니라 체크리스트인 이유: 서류를 실제로 준비했는지는 사람만 안다.
     도구가 "없습니다"라고 단정하면 이미 떼어 둔 서류에도 빨간 경고가 뜨고, 그런 게
-    몇 개 쌓이면 담당자가 경고 전체를 무시하게 된다. 대신 아는 것(회사 프로필에 있는
-    보유 서류)은 미리 체크해 두고, 나머지는 담당자가 직접 체크하게 한다.
+    몇 개 쌓이면 담당자가 경고 전체를 무시하게 된다.
 
-    kind 로 세 갈래를 나눈다 — 준비 방법이 다르기 때문이다.
-        보유   프로필에 이미 있는 서류
-        발급   떼러 가야 하는 서류 (발급에 며칠 걸리기도 한다)
+    회사가 어떤 서류를 갖고 있는지는 프로필에 두지 않는다. 납세증명서처럼 유효기간이
+    있는 서류가 대부분이라 '보유 중'이라는 정보가 며칠이면 틀린 값이 되고, 결국
+    담당자가 두 곳(프로필과 체크리스트)을 관리하게 된다. 공고마다 체크하는 편이
+    실제와 맞는다.
+
+    준비 방법이 다르므로 두 갈래로 나눈다.
+        발급   떼러 가야 하는 서류 (며칠 걸리는 것이 있다)
         작성   이번에 써야 하는 서류 (신청서·사업계획서 — 초안 탭이 돕는다)
     """
-    on_hand = {_normalize_doc(d) for d in profile.docs_on_hand}
     checked = checked or {}
-
     forms = notice.forms() if notice else []
     form_file = forms[0]["name"] if forms else ""
 
@@ -103,22 +103,15 @@ def document_checklist(report: EligibilityReport, profile: CompanyProfile,
             continue
         seen.add(name)
 
-        if name in on_hand:
-            kind, hint = "보유", "회사 프로필에 보유 서류로 등록돼 있습니다."
-        elif any(k in name for k in _WRITTEN_DOCS):
+        if any(k in name for k in _WRITTEN_DOCS):
             kind = "작성"
             hint = ("‘초안·점검’ 탭에서 만든 글을 공고 양식에 옮겨 담으세요."
                     + (f" 첨부의 ‘{form_file}’ 파일입니다." if form_file else ""))
         else:
             kind, hint = "발급", "발급처에서 미리 준비하세요. 며칠 걸리는 서류가 있습니다."
 
-        items.append({
-            "name": raw,
-            "kind": kind,
-            # 보유 서류는 미리 체크해 둔다. 담당자가 끄고 켤 수 있다.
-            "checked": bool(checked.get(raw, kind == "보유")),
-            "hint": hint,
-        })
+        items.append({"name": raw, "kind": kind,
+                      "checked": bool(checked.get(raw, False)), "hint": hint})
 
     note = ""
     if not items:
@@ -129,12 +122,9 @@ def document_checklist(report: EligibilityReport, profile: CompanyProfile,
                    if docs_file else "원문 공고에서 직접 확인하세요."))
         # 목록을 못 얻었어도 어느 사업에나 필요한 기본 서류는 짚어 준다.
         for doc in _COMMON_DOCS:
-            items.append({
-                "name": doc,
-                "kind": "보유" if doc in on_hand else "발급",
-                "checked": bool(checked.get(doc, doc in on_hand)),
-                "hint": "대부분의 지원사업이 요구하는 기본 서류입니다.",
-            })
+            items.append({"name": doc, "kind": "발급",
+                          "checked": bool(checked.get(doc, False)),
+                          "hint": "대부분의 지원사업이 요구하는 기본 서류입니다."})
 
     schedule = check_schedule(notice) if notice else []
     return {

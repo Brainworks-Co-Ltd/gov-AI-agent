@@ -116,7 +116,8 @@ def draft_of(conn: sqlite3.Connection, notice: Notice,
 
     spec = form_spec_of(conn, notice)
     chosen = sections or spec.get("write_sections") or None
-    draft = drafter.generate(notice, profile, chosen)
+    draft = drafter.generate(notice, profile, chosen,
+                             notice_text=spec.get("notice_text", ""))
     draft.form_file = spec.get("source_file", "")
     draft.form_fields = spec.get("fill_fields", [])
 

@@ -265,8 +265,10 @@ class CompanyProfile:
     revenue_krw: int = 0                # 직전연도 매출액 (원)
     company_type: str = "중소기업"      # 기업규모 구분
     ceo: str = ""
-    docs_on_hand: list[str] = field(default_factory=list)   # 보유 중인 제출서류
     strengths: str = ""                 # 초안에 쓸 회사 소개/강점 문단
+    # 보유 기술·서비스. 자격 판정의 업종 대조와 초안의 재료로 함께 쓰인다.
+    # 여기가 구체적일수록 초안이 구체적으로 나온다.
+    tech_services: str = ""
     extra: dict = field(default_factory=dict)               # 자유 항목
 
     # ── 공고가 자주 묻는 확인 항목 ──────────────────────────────────────
@@ -278,7 +280,7 @@ class CompanyProfile:
     # None(모름). None은 '확인필요'로 이어진다 — 모르는 것을 아는 척하지 않는다.
     tax_arrears: bool | None = None      # 국세·지방세 체납 중인가
     closed: bool | None = None           # 휴업·폐업 상태인가
-    recent_layoffs: bool | None = None   # 최근 1년 이내 고용조정(감원)이 있었나
+    venture_certified: bool | None = None  # 벤처기업 확인(인증)을 받았나
     root_tech: bool | None = None        # 뿌리기술 활용 기업인가
     women_owned: bool | None = None      # 여성기업 확인서를 보유했나
     smart_factory: bool | None = None    # 스마트공장을 이미 구축했나

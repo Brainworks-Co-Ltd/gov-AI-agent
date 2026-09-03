@@ -184,6 +184,9 @@ def of_notice(notice: Notice) -> dict:
     fields: list[str] = []
     source = ""
     read_names: list[str] = []
+    # 첨부에서 뽑은 공고문 본문. 초안을 쓸 때 재료로 넘긴다 — 오픈API가 주는 요약은
+    # 두세 줄뿐이라, 그것만으로는 추진계획·기대효과를 구체적으로 쓸 수 없다.
+    notice_text = ""
 
     def take(spec: dict, name: str) -> None:
         """읽어낸 결과를 모은다. 제출서류는 계속 합치고, 항목은 처음 찾은 것만 쓴다."""
@@ -205,6 +208,7 @@ def of_notice(notice: Notice) -> dict:
         if not text.strip():
             continue
         read_names.append(attachment["name"])
+        notice_text = notice_text or text
         take(parse(text), attachment["name"])
         if sections:
             break
@@ -220,6 +224,7 @@ def of_notice(notice: Notice) -> dict:
             if not text.strip():
                 continue
             read_names.append(attachment["name"])
+            notice_text = notice_text or text
             take(parse(text), attachment["name"])
             if sections:
                 break
@@ -235,4 +240,4 @@ def of_notice(notice: Notice) -> dict:
                 f"(공고문뿐이거나 기입란만 있는 서식입니다).")
     return {"write_sections": sections, "fill_fields": fields,
             "documents": documents, "source_file": source or read_names[0],
-            "note": note}
+            "notice_text": notice_text[:6000], "note": note}

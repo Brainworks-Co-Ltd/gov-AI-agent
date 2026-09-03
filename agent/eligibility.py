@@ -356,7 +356,13 @@ def _judge_size(req: Requirement, p: CompanyProfile,
 
 # 시·군·구 이름. 시·도(_REGION_ALIASES)만으로는 "금천구 소재 기업" 같은 요건을 판정할 수
 # 없어 전부 '확인필요'로 샌다 — 실측에서 확인필요의 가장 흔한 원인이었다.
-_DISTRICT_RE = re.compile(r"([가-힣]{2,5}(?:시|군|구))(?![가-힣])")
+# 앞뒤로 한글이 붙지 않은 자리에서만, **앞부분 1~3글자**까지만 인정한다.
+# 실제 시·군·구는 '광산구', '금천구', '사천시'처럼 짧다. 범위를 넓게 잡았더니
+# '청년친화도시'가 시·군·구로 잡혀 광주 공고가 '다른 지역'으로 제외됐다.
+_DISTRICT_RE = re.compile(r"(?<![가-힣])([가-힣]{1,3}(?:시|군|구))(?![가-힣])")
+# 시·군·구처럼 끝나지만 지역이 아닌 말.
+_NOT_DISTRICT_WORDS = {"연구", "지구", "기구", "요구", "촉구", "도시", "신도시",
+                       "광역시", "특별시", "행정시", "자치구", "각구", "대구"}
 # 여러 시·도에 같은 이름이 있는 자치구 — 이런 이름은 어느 지역인지 단정할 수 없다.
 _AMBIGUOUS_DISTRICTS = {"남구", "북구", "동구", "서구", "중구", "강서구", "성산구",
                         "고성군", "남원시", "광산구"}
@@ -366,7 +372,7 @@ _NOT_DISTRICT = {"광역시", "특별시", "특별자치시", "자치구", "행�
 
 def _districts_in(text: str) -> set[str]:
     return {m.group(1) for m in _DISTRICT_RE.finditer(text or "")
-            if m.group(1) not in _NOT_DISTRICT
+            if m.group(1) not in _NOT_DISTRICT_WORDS
             and not any(m.group(1).endswith(s) for s in _NOT_DISTRICT)}
 
 
@@ -465,11 +471,11 @@ def _judge_industry(req: Requirement, p: CompanyProfile,
 _FLAG_RULES: list[tuple[tuple[str, ...], str, bool, str]] = [
     # 키워드, 프로필 속성, 기본적으로 요구되는 값, 사람이 읽을 항목 이름
     (("체납",), "tax_arrears", False, "국세·지방세 체납"),
-    (("고용조정", "감원", "인위적 구조조정"), "recent_layoffs", False, "최근 고용조정"),
     (("휴업", "폐업"), "closed", False, "휴·폐업"),
     (("뿌리기술", "뿌리기업"), "root_tech", True, "뿌리기술 활용"),
     (("여성기업",), "women_owned", True, "여성기업 확인서"),
     (("스마트공장", "스마트시스템"), "smart_factory", True, "스마트공장 구축"),
+    (("벤처기업", "벤처확인", "벤처인증"), "venture_certified", True, "벤처기업 확인"),
 ]
 
 # 요건 문장이 '없어야 한다'는 쪽을 말할 때 붙는 표현.

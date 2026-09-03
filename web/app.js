@@ -133,6 +133,38 @@ function renderTally(data) {
   $("btn-judge-all").disabled = left === 0;
 }
 
+/* 우리 회사에 맞는 공고를 맨 위로.
+ *
+ * 수백 건을 마감순으로만 늘어놓으면 담당자가 위에서부터 훑다 지치고, 정작 맞는 공고는
+ * 아래 묻힙니다. 점수는 지역·업종·지원분야·마감으로 코드가 매기고(LLM을 안 쓰므로
+ * 빠르고 매번 같습니다), **왜 추천했는지 근거를 반드시 함께** 보여줍니다 —
+ * 근거 없는 추천 목록은 한 번 훑고 무시하게 됩니다.
+ */
+function renderRecommended(picks) {
+  const box = $("recommend-box");
+  const list = $("recommend-list");
+  if (!picks || !picks.length) {
+    box.hidden = true;
+    $("all-heading").hidden = true;
+    return;
+  }
+  box.hidden = false;
+  $("all-heading").hidden = false;
+  $("rec-basis").textContent = "회사 프로필 기준";
+
+  list.innerHTML = "";
+  picks.forEach((p) => {
+    const card = noticeCard(p.item);
+    card.classList.add("pick");
+    const grow = card.querySelector(".grow");
+    const why = document.createElement("div");
+    why.className = "why";
+    why.textContent = "추천 이유: " + p.reasons.join(" · ");
+    grow.appendChild(why);
+    list.appendChild(card);
+  });
+}
+
 async function loadNotices() {
   const params = new URLSearchParams(currentFilter());
   const list = $("notice-list");
@@ -140,6 +172,7 @@ async function loadNotices() {
   try {
     const data = await api("/api/notices?" + params.toString());
     renderTally(data);
+    renderRecommended(data.recommended);
     if (!data.items.length) {
       list.innerHTML = `<p class="empty">조건에 맞는 공고가 없습니다.
         ‘공고 새로 수집’을 눌러보세요.</p>`;
@@ -514,11 +547,11 @@ const PROFILE_FIELDS = [
   ["export_usd", "직전연도 수출액 (달러)", "number"],
   ["tax_arrears", "국세·지방세를 체납 중이다", "bool"],
   ["closed", "휴업·폐업 상태다", "bool"],
-  ["recent_layoffs", "최근 1년 이내 고용조정이 있었다", "bool"],
+  ["venture_certified", "벤처인증기업이다", "bool"],
   ["root_tech", "뿌리기술 활용 기업이다", "bool"],
   ["women_owned", "여성기업 확인서를 보유했다", "bool"],
   ["smart_factory", "스마트공장을 이미 구축했다", "bool"],
-  ["docs_on_hand", "보유 서류 (쉼표로 구분)", "list"],
+  ["tech_services", "보유 기술 및 서비스 (구체적일수록 초안이 구체적으로 나옵니다)", "area"],
   ["strengths", "회사 강점·현안 (초안에 쓰입니다)", "area"],
 ];
 
@@ -573,8 +606,74 @@ $("btn-save-profile").addEventListener("click", async () => {
   setTimeout(() => ($("profile-saved").textContent = ""), 5000);
 });
 
+/* 기존 사업계획서 올리기.
+ *
+ * 파일을 본문에 그대로 싣고 이름은 헤더에 담습니다 — 표준 라이브러리 서버라
+ * multipart 파서가 없고, 직접 짜면 경계 문자열 처리에서 사고가 납니다.
+ */
+function renderPastList(items) {
+  const list = $("past-list");
+  if (!items || !items.length) {
+    list.innerHTML =
+      `<li class="none">아직 올린 사업계획서가 없습니다. 초안이 회사 프로필만 보고 쓰입니다.</li>`;
+    return;
+  }
+  list.innerHTML = items.map((it) => `
+    <li><a href="#" data-del="${escapeHtml(it.name)}" title="지우기">
+      <span class="kind">${it.sections ? it.sections + "문항" : "1덩어리"}</span>
+      <span class="fname">${escapeHtml(it.name)}</span>
+      <span class="kind">${it.chars.toLocaleString()}자</span>
+      <span class="kind">지우기</span>
+    </a></li>`).join("");
+
+  list.querySelectorAll("a[data-del]").forEach((a) =>
+    a.addEventListener("click", async (e) => {
+      e.preventDefault();
+      if (!confirm(`'${a.dataset.del}' 을 지울까요?`)) return;
+      const r = await post("/api/past-applications/delete", { name: a.dataset.del });
+      renderPastList(r.items);
+      $("past-log").textContent = "지웠습니다.";
+    }));
+}
+
+async function loadPastList() {
+  try {
+    renderPastList((await api("/api/past-applications")).items);
+  } catch (e) {
+    $("past-list").innerHTML = `<li class="none">${escapeHtml(e.message)}</li>`;
+  }
+}
+
+$("btn-upload-past").addEventListener("click", async () => {
+  const files = [...($("past-file").files || [])];
+  if (!files.length) {
+    $("past-log").textContent = "올릴 파일을 고르세요.";
+    return;
+  }
+  $("btn-upload-past").disabled = true;
+  const notes = [];
+  for (const file of files) {
+    $("past-log").textContent = `${file.name} 여는 중…`;
+    try {
+      const res = await api("/api/past-applications", {
+        method: "POST",
+        headers: { "X-Filename": encodeURIComponent(file.name) },
+        body: await file.arrayBuffer(),
+      });
+      notes.push(`${file.name}: ${res.note}`);
+      if (res.items) renderPastList(res.items);
+    } catch (e) {
+      notes.push(`${file.name}: ${e.message}`);
+    }
+  }
+  $("past-log").textContent = notes.join(" / ");
+  $("past-file").value = "";
+  $("btn-upload-past").disabled = false;
+});
+
 // ─────────────────────────────────────────────────────────────── 시작
 
 loadStatus();
 loadNotices();
 loadProfile();
+loadPastList();
