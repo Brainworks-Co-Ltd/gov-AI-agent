@@ -12,10 +12,7 @@
   "ceo": "강우현",
   "strengths": "AI 전문 수행역량 기반으로 다수의 우수 기업 표창 수상 및 우수 실증 경험 보유, 우수한 AI 기술 인지도 및 브랜드 파워 확보, 글로벌 비즈니스 네트워크 구축 완료",
   "tech_services": "AI 딥러닝 기반 공정진동이상 탐지 솔루션, AI XGBoost 기반 공정 수율/품질 예측 솔루션, AI 시계열 데이터 기반 환경 예측 솔루션, AI 딥러닝 비전 기반 양불 판정 솔루션, 예지보전 시스템과 연동되는 제조공장 전문 AI Agent 솔루션, sLLM 기반 실시간 음성 통역 AI Agent, AI 기반 Healthcare Portable 심전도 측정 디바이스, AI Dental 3D 자동 라벨링 솔루션, GNSS-RTK IOT 기반 초정밀 스타트 모빌리티 안전 관제 시스템",
-  "extra": {
-    "주생산품": "차량용 전자제어 모듈(ECU) PCB 어셈블리",
-    "설비": "SMT 라인 2기, AOI 검사기 1기"
-  },
+  "extra": {},
   "tax_arrears": false,
   "closed": false,
   "venture_certified": true,
