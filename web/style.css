@@ -98,8 +98,11 @@ input[type=text], input[type=number], select, textarea {
   font-family: inherit; font-size: 13px; background: var(--card); color: var(--foreground);
   transition: border-color .12s, box-shadow .12s;
 }
+/* outline 을 지우면 전역 :focus-visible(2px --ring, 4.53:1)이 특이도에 밀려
+   사라진다. 남는 신호는 --ring-soft 합성 1.29:1 과 --border-hover 2.21:1 뿐이라
+   WCAG 1.4.11 의 3:1 을 못 넘는다. 테두리·글로우는 장식으로 두고 링은 살린다. */
 input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
-  outline: none; border-color: var(--border-hover);
+  border-color: var(--border-hover);
   box-shadow: 0 0 0 3px var(--ring-soft);
 }
 
@@ -275,7 +278,7 @@ main { padding: 24px 28px 60px; max-width: 1240px; }
   transition: border-color .12s, box-shadow .12s;
 }
 .toolbar input[type=search]:focus {
-  outline: none; border-color: var(--border-hover); box-shadow: 0 0 0 3px var(--ring-soft);
+  border-color: var(--border-hover); box-shadow: 0 0 0 3px var(--ring-soft);
 }
 .count { color: var(--muted-foreground); font-size: 12px; font-weight: 600; }
 .log { color: var(--muted-foreground); font-size: 12px; margin: 6px 0; min-height: 16px; white-space: pre-line; }
