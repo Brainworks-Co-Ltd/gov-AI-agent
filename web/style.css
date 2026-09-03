@@ -279,8 +279,11 @@ main { padding: 24px 28px 60px; max-width: 1240px; }
    결과를 다루는 정렬과 집계. 검색칸이 이미 테두리를 가지고 있어 세로선을 덧대면
    선이 겹쳐 보이므로, 경계는 간격으로만 낸다. */
 .toolbar > input[type=search] { margin-left: 12px; }
-/* 정렬은 목록을 좁히지 않으므로 필터 무리에서 떼어 집계 옆으로 보낸다. */
-.toolbar > label:last-of-type { margin-left: auto; }
+/* 정렬은 목록을 좁히지 않으므로 필터 무리에서 떼어 집계 옆으로 보낸다.
+   .toolbar 는 네 군데서 쓰인다. last-of-type 으로 잡으면 프로필의 업로드
+   툴바에서도 걸려(label 이 '파일 고르기' 하나뿐) 버튼 묶음이 통째로 오른쪽
+   끝으로 밀렸다. 위치가 아니라 내용을 보고 고른다. */
+.toolbar > label:has(#f-sort) { margin-left: auto; }
 .toolbar > .count { margin-left: 4px; }
 .toolbar input[type=search] {
   padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -478,7 +481,7 @@ button.ghost { background: transparent; color: var(--muted-foreground); font-siz
 @media (max-width: 560px) {
   .form { grid-template-columns: minmax(0, 1fr); }
   .pair { grid-template-columns: minmax(0, 1fr) auto; }
-  .toolbar > label:last-of-type { margin-left: 0; }
+  .toolbar > label:has(#f-sort) { margin-left: 0; }
 }
 
 
