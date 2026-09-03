@@ -140,7 +140,17 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
 }
 .grid tr:last-child td { border-bottom: none; }
 /* 행을 눈으로 따라갈 수 있게 한다 (TailGrids Table: 흰 배경 → Gray 50) */
-.grid tbody tr:hover td { background: var(--muted); }
+.grid tbody tr:hover td { background: var(--background); }
+/* 인용 블록은 hover 면보다 한 단 더 내려가야 행에 녹지 않는다 (#fff → #f4f7ff → #edf0fb) */
+
+/* 스켈레톤 — 판정에 2~4초가 걸린다. 빈 화면 대신 들어올 내용의 모양을 미리 보여준다. */
+.sk { display: block; height: 12px; border-radius: var(--radius-xs);
+      background: linear-gradient(90deg, var(--muted) 25%, var(--border-subtle) 37%, var(--muted) 63%);
+      background-size: 400% 100%; animation: sk 1.4s ease-in-out infinite; }
+.sk + .sk { margin-top: 8px; }
+.sk.w60 { width: 60%; } .sk.w40 { width: 40%; } .sk.w80 { width: 80%; }
+@keyframes sk { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
 
 .chip {
   display: inline-block; padding: 3px 9px; border-radius: var(--radius-xs);

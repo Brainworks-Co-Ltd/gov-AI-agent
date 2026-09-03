@@ -247,7 +247,7 @@ async function openNotice(item) {
       ? ` · 통합 근거: ${escapeHtml(item.merge_reason)}` : "") +
     `<br>${links}`;
 
-  $("v-rows").innerHTML = `<tr><td colspan="4">판정 중입니다…</td></tr>`;
+  $("v-rows").innerHTML = `<tr>` + [4,3,4].map((n,i)=>`<td>` + `<span class="sk w80"></span>`.repeat(1) + (i===2 ? `<span class="sk w60"></span>` : ``) + `</td>`).join("") + `<td><span class="sk"></span><span class="sk w40"></span></td></tr>`;
   $("v-overall").textContent = "";
   $("v-note").textContent = "";
   renderOverview(item);
@@ -325,6 +325,11 @@ function renderChecklist(data, docsSource) {
     data.total ? `${data.done}/${data.total} 준비됨` : "";
   $("v-docs-note").textContent = data.note || "";
 
+  // 항목마다 같은 힌트가 붙으면 다섯 번 반복돼 정보가 아니라 배경 소음이 된다.
+  // 전부 같은 문구일 때는 목록 아래에 한 번만 쓴다.
+  const hints = data.items.map((it) => it.hint || "");
+  const sharedHint = hints.length > 1 && hints.every((h) => h === hints[0]) ? hints[0] : "";
+
   $("v-checklist").innerHTML = data.items.length
     ? data.items.map((it) => `
         <label class="doc ${it.checked ? "done" : ""}">
@@ -332,8 +337,10 @@ function renderChecklist(data, docsSource) {
                  ${it.checked ? "checked" : ""}>
           <span class="kind ${escapeHtml(it.kind)}">${escapeHtml(it.kind)}</span>
           <span class="dname">${escapeHtml(it.name)}</span>
-          <span class="dhint">${escapeHtml(it.hint)}</span>
+          ${sharedHint ? "" : `<span class="dhint">${escapeHtml(it.hint)}</span>`}
         </label>`).join("") +
+      (sharedHint
+        ? `<p class="src-note">${escapeHtml(sharedHint)}</p>` : "") +
       (docsSource
         ? `<p class="src-note">서류 목록 출처: ${escapeHtml(docsSource)}</p>` : "")
     : `<p class="empty small">제출서류를 찾지 못했습니다.</p>`;
@@ -343,7 +350,7 @@ function renderChecklist(data, docsSource) {
 }
 
 async function loadChecklist(docsSource) {
-  $("v-checklist").innerHTML = `<p class="empty small">서류 목록을 확인하는 중…</p>`;
+  $("v-checklist").innerHTML = `<span class="sk w60"></span><span class="sk w80"></span><span class="sk w60"></span>`;
   try {
     renderChecklist(await api(noticeUrl(current.id, "checklist")), docsSource);
   } catch (e) {
@@ -369,7 +376,7 @@ async function saveChecklist() {
 }
 
 $("btn-rejudge").addEventListener("click", async () => {
-  $("v-rows").innerHTML = `<tr><td colspan="4">다시 판정 중입니다…</td></tr>`;
+  $("v-rows").innerHTML = `<tr>` + [4,3,4].map((n,i)=>`<td>` + `<span class="sk w80"></span>`.repeat(1) + (i===2 ? `<span class="sk w60"></span>` : ``) + `</td>`).join("") + `<td><span class="sk"></span><span class="sk w40"></span></td></tr>`;
   await loadEligibility(true);
 });
 
@@ -482,7 +489,7 @@ $("btn-regenerate").addEventListener("click", () => openDraft(true));
 
 $("btn-check").addEventListener("click", async () => {
   if (!currentDraft) return;
-  $("d-issues").innerHTML = `<p class="empty small">점검 중입니다…</p>`;
+  $("d-issues").innerHTML = `<span class="sk w80"></span><span class="sk"></span><span class="sk w40"></span>`;
   try {
     const result = await post(noticeUrl(current.id, "check"), collectDraft());
     renderIssues(result.issues);
