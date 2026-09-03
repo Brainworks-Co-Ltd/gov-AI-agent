@@ -16,7 +16,7 @@
 - Create: `tests_bookmarks.js`
 - Create: `web/bookmarks.js`
 
-- [ ] **Step 1: 실패하는 저장 로직 테스트 작성**
+- [x] **Step 1: 실패하는 저장 로직 테스트 작성**
 
 ```javascript
 const assert = require("node:assert/strict");
@@ -36,13 +36,13 @@ assert.equal(createStore(storage).has("공고:1"), true);
 assert.deepEqual(store.filter([{ id: "공고:2" }, { id: "공고:1" }]), [{ id: "공고:1" }]);
 ```
 
-- [ ] **Step 2: 테스트 실패 확인**
+- [x] **Step 2: 테스트 실패 확인**
 
 Run: `node tests_bookmarks.js`
 
 Expected: `web/bookmarks.js` 모듈을 찾지 못해 실패함.
 
-- [ ] **Step 3: 최소 저장 모듈 구현**
+- [x] **Step 3: 최소 저장 모듈 구현**
 
 ```javascript
 const DEFAULT_KEY = "gov-ai-agent:bookmarks:v1";
@@ -79,7 +79,7 @@ function createStore(storage, key = DEFAULT_KEY) {
 }
 ```
 
-- [ ] **Step 4: 저장 로직 테스트 통과 확인**
+- [x] **Step 4: 저장 로직 테스트 통과 확인**
 
 Run: `node tests_bookmarks.js`
 
@@ -93,7 +93,7 @@ Expected: `북마크 테스트 모두 통과` 출력 후 종료 코드 0.
 - Modify: `web/app.js`
 - Modify: `web/style.css`
 
-- [ ] **Step 1: 실패하는 화면 연결 테스트 추가**
+- [x] **Step 1: 실패하는 화면 연결 테스트 추가**
 
 ```javascript
 const fs = require("node:fs");
@@ -106,13 +106,13 @@ assert.match(app, /aria-pressed/);
 assert.match(app, /stopPropagation/);
 ```
 
-- [ ] **Step 2: 화면 연결 테스트 실패 확인**
+- [x] **Step 2: 화면 연결 테스트 실패 확인**
 
 Run: `node tests_bookmarks.js`
 
 Expected: `btn-bookmarks`가 없어 assertion 실패함.
 
-- [ ] **Step 3: HTML과 카드 토글 구현**
+- [x] **Step 3: HTML과 카드 토글 구현**
 
 `web/index.html`에서 검색 입력 앞에 다음 버튼을 추가하고 `bookmarks.js`를 `app.js`보다
 먼저 불러옴.
@@ -128,7 +128,7 @@ Expected: `btn-bookmarks`가 없어 assertion 실패함.
 각 카드에 실제 버튼을 생성함. 버튼의 `click`과 `keydown`에서 `stopPropagation()`을
 호출하고 토글 뒤 같은 ID를 가진 모든 버튼의 `aria-pressed`와 별 모양을 갱신함.
 
-- [ ] **Step 4: 로컬 필터와 집계 구현**
+- [x] **Step 4: 로컬 필터와 집계 구현**
 
 마지막 서버 응답을 보관하고 `북마크만`이 켜져 있으면 다음과 같이 목록을 고름.
 
@@ -142,13 +142,13 @@ const picks = bookmarksOnly
 필터된 `items`로 전체 건수, 판정 완료 건수, 판정별 집계를 계산하여 `renderTally`에
 넘김. 북마크만 보기에서 해제하면 마지막 서버 응답을 즉시 다시 그림.
 
-- [ ] **Step 5: 상태 스타일 구현**
+- [x] **Step 5: 상태 스타일 구현**
 
 기존 색 토큰만 사용해 별 버튼은 작고 평평한 보조 동작으로, 북마크만 버튼은 선택 시
 `--primary-soft` 배경과 `--accent-foreground` 글자로 표시함. 카드 hover 이동이 버튼
 hover와 충돌하지 않도록 북마크 버튼의 그림자와 이동 효과를 제거함.
 
-- [ ] **Step 6: 화면 연결 테스트 통과 확인**
+- [x] **Step 6: 화면 연결 테스트 통과 확인**
 
 Run: `node tests_bookmarks.js`
 
@@ -159,7 +159,7 @@ Expected: 저장 로직과 화면 연결 assertion이 모두 통과함.
 **Files:**
 - Modify: `docs/superpowers/plans/2026-09-03-local-notice-bookmarks.md`
 
-- [ ] **Step 1: 정적·회귀 테스트 실행**
+- [x] **Step 1: 정적·회귀 테스트 실행**
 
 Run: `node --check web/bookmarks.js`
 
@@ -181,13 +181,13 @@ Run: `python -X utf8 tests_eligibility_region.py`
 
 Expected: 모든 지역 판정 회귀 테스트가 통과함.
 
-- [ ] **Step 2: 브라우저 동작 확인**
+- [x] **Step 2: 브라우저 동작 확인**
 
 로컬 서버에서 공고 카드 하나를 북마크하고 새로고침한 뒤 별 상태가 남는지 확인함.
 `북마크만`을 켜서 해당 공고만 남는지, 해제하면 빈 상태가 되는지, 별 버튼을 눌렀을
 때 자격 판정 화면으로 이동하지 않는지 확인함.
 
-- [ ] **Step 3: 계획 체크와 변경 범위 확인**
+- [x] **Step 3: 계획 체크와 변경 범위 확인**
 
 Run: `git diff --check`
 

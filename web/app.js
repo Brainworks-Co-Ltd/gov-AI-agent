@@ -10,6 +10,18 @@ const $ = (id) => document.getElementById(id);
 let current = null;
 let currentDraft = null;
 
+// 북마크는 회사 프로필과 무관한 브라우저별 편의 기능이다. 저장소 접근이 막혀도
+// 현재 탭에서는 쓸 수 있도록 저장 모듈 내부의 메모리 상태로 이어 간다.
+let browserStorage = null;
+try {
+  browserStorage = window.localStorage;
+} catch (_) {
+  browserStorage = null;
+}
+const bookmarkStore = NoticeBookmarks.createStore(browserStorage);
+let bookmarksOnly = false;
+let latestNoticeData = null;
+
 // ─────────────────────────────────────────────────────────────── 공통
 
 async function api(path, options) {
@@ -85,10 +97,42 @@ async function loadStatus() {
 
 // ─────────────────────────────────────────────────────────── ① 공고함
 
+function setBookmarkButtonState(bookmark, saved) {
+  bookmark.textContent = saved ? "★" : "☆";
+  bookmark.setAttribute("aria-pressed", String(saved));
+  bookmark.setAttribute("aria-label", saved ? "북마크 해제" : "북마크 추가");
+  bookmark.title = saved ? "북마크 해제" : "북마크 추가";
+}
+
+function updateBookmarkFilterButton() {
+  const button = $("btn-bookmarks");
+  button.textContent = `북마크만 ${bookmarkStore.count()}`;
+  button.setAttribute("aria-pressed", String(bookmarksOnly));
+}
+
+function syncBookmarkButtons(noticeId) {
+  const saved = bookmarkStore.has(noticeId);
+  document.querySelectorAll(".bookmark-button").forEach((bookmark) => {
+    if (bookmark.dataset.noticeId === noticeId) {
+      setBookmarkButtonState(bookmark, saved);
+    }
+  });
+}
+
+function toggleBookmark(noticeId) {
+  bookmarkStore.toggle(noticeId);
+  updateBookmarkFilterButton();
+  if (bookmarksOnly && latestNoticeData) {
+    renderNoticeData(latestNoticeData);
+    return;
+  }
+  syncBookmarkButtons(noticeId);
+}
+
 function noticeCard(item) {
   const card = document.createElement("div");
   card.className = "card";
-  card.dataset.id = item.id;      // 일괄 판정이 이 카드의 뱃지만 콕 집어 갱신한다
+  card.dataset.id = item.id;
 
   const dday = item.d_day === null ? "상시"
     : item.d_day < 0 ? "마감" : `D-${item.d_day}`;
@@ -97,7 +141,11 @@ function noticeCard(item) {
   const merged = item.merged
     ? `<span class="tag">${escapeHtml(item.sources.join(" · "))} 통합</span>` : "";
 
-  card.innerHTML = `
+  // 카드 본문과 북마크를 각각 실제 버튼으로 두어 중첩된 인터랙션을 피한다.
+  const open = document.createElement("button");
+  open.type = "button";
+  open.className = "card-open";
+  open.innerHTML = `
     <div class="dday ${urgent ? "urgent" : ""}">${dday}</div>
     <div class="grow">
       <div class="title">${escapeHtml(item.title)}${merged}</div>
@@ -106,17 +154,21 @@ function noticeCard(item) {
         · 마감 ${escapeHtml(item.apply_end || "미상")}</div>
     </div>
     <span class="badge ${verdict}">${verdict}</span>`;
+  open.addEventListener("click", () => openNotice(item));
 
-  // 공고를 고르는 것이 이 화면의 유일한 동작인데 div 에 click 만 달려 있어서
-  // 키보드로는 아무 공고도 열 수 없었다. 마우스 없이도 목록을 훑을 수 있어야 한다.
-  card.tabIndex = 0;
-  card.setAttribute("role", "button");
-  card.addEventListener("click", () => openNotice(item));
-  card.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter" && e.key !== " ") return;
-    e.preventDefault();          // Space 가 페이지를 스크롤하지 않게
-    openNotice(item);
+  const bookmark = document.createElement("button");
+  bookmark.type = "button";
+  bookmark.className = "bookmark-button";
+  bookmark.dataset.noticeId = item.id;
+  setBookmarkButtonState(bookmark, bookmarkStore.has(item.id));
+  bookmark.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleBookmark(item.id);
   });
+  bookmark.addEventListener("keydown", (e) => e.stopPropagation());
+
+  card.appendChild(open);
+  card.appendChild(bookmark);
   return card;
 }
 
@@ -143,6 +195,17 @@ function renderTally(data) {
     `<span class="badge 확인필요">확인필요 ${t["확인필요"] || 0}</span>` +
     `<span class="badge 불가">불가 ${t["불가"] || 0}</span>` +
     (left > 0 ? `<span class="badge 미판정">미판정 ${left}</span>` : "");
+}
+
+function summarizeItems(items) {
+  const tally = { "가능": 0, "확인필요": 0, "불가": 0 };
+  let judged = 0;
+  items.forEach((item) => {
+    if (!(item.verdict in tally)) return;
+    tally[item.verdict] += 1;
+    judged += 1;
+  });
+  return { total: items.length, judged, tally };
 }
 
 /* 우리 회사에 맞는 공고를 맨 위로.
@@ -211,15 +274,7 @@ async function loadNotices() {
   try {
     const data = await api("/api/notices?" + params.toString());
     if (seq !== loadSeq) return;          // 더 새 요청이 이미 떠났다
-    list.innerHTML = "";
-    renderTally(data);
-    renderRecommended(data.recommended);
-    if (!data.items.length) {
-      list.innerHTML = `<p class="empty">조건에 맞는 공고가 없습니다.
-        검색어나 필터를 지워 보세요.</p>`;
-      return;
-    }
-    renderCards(list, data.items);
+    renderNoticeData(data);
   } catch (e) {
     if (seq !== loadSeq) return;
     list.innerHTML = `<p class="empty">${escapeHtml(e.message)}</p>`;
@@ -280,6 +335,28 @@ async function pollRefresh() {
   }
 }
 
+function renderNoticeData(data) {
+  latestNoticeData = data;
+  const list = $("notice-list");
+  const items = bookmarksOnly ? bookmarkStore.filter(data.items) : data.items;
+  const picks = bookmarksOnly
+    ? (data.recommended || []).filter((pick) => bookmarkStore.has(pick.item.id))
+    : data.recommended;
+
+  list.innerHTML = "";
+  renderTally(bookmarksOnly ? summarizeItems(items) : data);
+  renderRecommended(picks);
+  if (!items.length) {
+    list.innerHTML = bookmarksOnly
+      ? `<p class="empty">현재 조건에 맞는 북마크가 없습니다.<br>
+          전체 공고에서 별을 눌러 관심 공고를 저장하세요.</p>`
+      : `<p class="empty">조건에 맞는 공고가 없습니다.
+          검색어나 필터를 지워 보세요.</p>`;
+    return;
+  }
+  renderCards(list, items);
+}
+
 async function startRefresh(path) {
   setRefreshButtons(true);
   try {
@@ -297,6 +374,11 @@ async function startRefresh(path) {
 
 $("btn-judge-all").addEventListener("click", () => startRefresh("/api/judge"));
 $("btn-ingest").addEventListener("click", () => startRefresh("/api/ingest"));
+$("btn-bookmarks").addEventListener("click", () => {
+  bookmarksOnly = !bookmarksOnly;
+  updateBookmarkFilterButton();
+  if (latestNoticeData) renderNoticeData(latestNoticeData);
+});
 
 ["f-q", "f-region", "f-within", "f-verdict", "f-sort"].forEach((id) => {
   const el = $(id);
@@ -966,6 +1048,7 @@ $("btn-upload-past").addEventListener("click", async () => {
 
 // ─────────────────────────────────────────────────────────────── 시작
 
+updateBookmarkFilterButton();
 loadStatus();
 loadNotices();
 loadProfile();

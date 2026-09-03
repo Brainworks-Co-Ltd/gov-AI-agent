@@ -1,6 +1,8 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const { DEFAULT_KEY, parseIds, createStore } = require("./web/bookmarks.js");
 
 function memoryStorage(initial = {}) {
@@ -66,9 +68,28 @@ function testStorageFailureKeepsCurrentTabState() {
   assert.equal(store.count(), 1);
 }
 
+function testBookmarkUiIsConnectedAccessibly() {
+  const html = fs.readFileSync(path.join(__dirname, "web", "index.html"), "utf8");
+  const app = fs.readFileSync(path.join(__dirname, "web", "app.js"), "utf8");
+  const css = fs.readFileSync(path.join(__dirname, "web", "style.css"), "utf8");
+
+  assert.match(html, /id="btn-bookmarks"[^>]*aria-pressed="false"/);
+  assert.ok(
+    html.indexOf('src="bookmarks.js"') < html.indexOf('src="app.js"'),
+    "북마크 저장 모듈을 앱보다 먼저 불러와야 함.",
+  );
+  assert.match(app, /NoticeBookmarks\.createStore/);
+  assert.match(app, /bookmark\.type = "button"/);
+  assert.match(app, /bookmark\.setAttribute\("aria-pressed"/);
+  assert.match(app, /e\.stopPropagation\(\)/);
+  assert.match(css, /\.bookmark-filter\[aria-pressed="true"\]/);
+  assert.match(css, /\.bookmark-button\[aria-pressed="true"\]/);
+}
+
 testParseIdsKeepsUniqueStringsOnly();
 testTogglePersistsAcrossStoreInstances();
 testFilterKeepsServerOrder();
 testStorageFailureKeepsCurrentTabState();
+testBookmarkUiIsConnectedAccessibly();
 
-console.log("북마크 저장 테스트 모두 통과 (4개)");
+console.log("북마크 테스트 모두 통과 (5개)");
