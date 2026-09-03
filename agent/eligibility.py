@@ -148,6 +148,95 @@ def _fallback_requirements(text: str) -> list[Requirement]:
     return found
 
 
+# ── 지역 요건 누락 검증 ───────────────────────────────────────────────────────
+# 추출이 **문법적으로 멀쩡한 JSON을 내면서 요건 하나를 통째로 빠뜨리는** 일이 있다.
+# 파싱도 스키마 검증도 통과하므로 재시도가 걸리지 않고, 그대로 두면 신청할 수 없는
+# 공고가 '가능'으로 뜬다 — 이 도구에서 가장 비싼 실수다. 같은 공고를 4회 돌려 2회는
+# 지역 요건이 빠졌다(원주시·횡성군·영월군 소상공인 건강검진 공고).
+#
+# 그래서 원문을 규칙으로 되훑어 '소재지를 요구하는 문장'이 있는지 본다. 있는데 지역
+# 축 요건이 하나도 없으면 놓친 것으로 보고 되찾는다.
+_REGION_DUTY_RE = re.compile(
+    # '창업 소재를 보유한'의 소재는 재료라는 뜻이다. 목적격·부사격 조사가 붙으면
+    # 장소가 아니므로 뺀다. 장소로 쓰일 때는 '소재 기업'·'소재지'·'소재한'이 된다.
+    r"(?:소재(?![를을가]|으?로)|관내|역내|주소를?\s*두|본점을?\s*두|본사를?\s*두"
+    r"|사업장을?\s*(?:둔|두고|운영)|거주\s*중인|거주하는)")
+
+
+def _region_duty_sentences(text: str) -> list[str]:
+    """소재지를 **요구하는** 문장만 고른다.
+
+    '광주테크노파크가 주관한다'처럼 기관 이름에 지역이 섞인 문장을 요건으로 오인하면
+    안 되므로, 소재지 의무 표현과 지역 이름이 **같은 문장 안에** 있을 때만 인정한다.
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+    for m in _REGION_DUTY_RE.finditer(text or ""):
+        line = _sentence_around(text, m.start(), m.end())
+        if not line or len(line) < 8 or line in seen:
+            continue
+        if not (_regions_in(line) - {"*"}) and not _districts_in(line):
+            continue
+        seen.add(line)
+        out.append(line)
+    return out
+
+
+_REFINE_SYSTEM = (
+    "너는 정부지원사업 공고문에서 '신청 자격요건'만 뽑아내는 도구다. 아래 공고문에는 "
+    "**소재지·지역 조건**이 들어 있다. 그 조건을 반드시 requirements 에 넣어라.\n"
+    "규칙:\n"
+    "1. quote 에는 공고문에 그대로 적혀 있는 문장을 복사해 넣어라. 요약하거나 다듬지 "
+    "말고 원문 그대로여야 한다. 원문에 없는 조건은 만들지 마라.\n"
+    "2. 소재지 조건은 axis 를 '지역'으로, value 에는 대상 지역 이름만 짧게 쓴다. "
+    "예: '광주광역시', '원주시·횡성군·영월군'.\n"
+    "3. 지역 말고도 자격에 영향을 주는 조건이 보이면 함께 넣어라.\n"
+    "4. 지원 금액·사업 기간·문의처는 넣지 마라."
+)
+
+
+def _refine_region(text: str, attempts: int = 2) -> list[Requirement]:
+    """지역 조건만 콕 집어 다시 뽑는다.
+
+    한 번에 전체 스키마를 채우게 하면 흘리지만, 무엇을 찾으라고 좁혀 주면 대개 집어낸다.
+    비었거나 호출이 실패하면 다시 부른다 — 표본이 바뀌면 대개 풀린다.
+    """
+    for _ in range(attempts):
+        try:
+            data = hyperclova_api.chat_structured(
+                _REFINE_SYSTEM, f"[공고문]\n{text[:6000]}", _REQ_SCHEMA, max_tokens=900)
+        except Exception:
+            continue
+        got = [Requirement(axis=item.get("axis") if item.get("axis") in AXES else AXIS_ETC,
+                           operator=str(item.get("operator", "포함")),
+                           value=str(item.get("value", "")).strip(),
+                           quote=str(item.get("quote", "")).strip())
+               for item in data.get("requirements", [])
+               if _verify_quote(str(item.get("quote", "")), text)]
+        if any(r.axis == AXIS_REGION for r in got):
+            return got
+    return []
+
+
+def _recover_region(text: str, sentences: list[str],
+                    kept: list[Requirement]) -> list[Requirement]:
+    """놓친 지역 요건을 되찾아, 목록에 보탤 것들을 돌려준다."""
+    squeeze = lambda s: re.sub(r"\s+", "", s)
+    have = {squeeze(r.quote) for r in kept}
+    # 지역 축만 가져온다. 나머지는 1차 추출이 이미 뽑았고, 그대로 보태면 같은 요건이
+    # 인용만 달리해서 표에 두 줄로 뜬다(실제로 업력이 두 번 나왔다).
+    found = [r for r in _refine_region(text)
+             if r.axis == AXIS_REGION and squeeze(r.quote) not in have]
+    if found:
+        return found
+    # LLM 이 두 번 다 놓쳤으면 문장 자체를 요건으로 세운다. 판정기는 시·도가 없으면
+    # 시·군·구로도 판정하므로, 문장만 있어도 '불가'를 낼 수 있다.
+    line = sentences[0]
+    names = sorted(_regions_in(line) - {"*"}) or sorted(_districts_in(line))
+    return [Requirement(axis=AXIS_REGION, operator="포함",
+                        value=", ".join(names), quote=line)]
+
+
 def extract_requirements(text: str,
                          eligibility_text: str = "") -> tuple[list[Requirement], str]:
     """공고문 → 요건 목록. 반환: (요건들, 담당자에게 보여줄 알림).
@@ -188,9 +277,19 @@ def extract_requirements(text: str,
                                 value=str(item.get("value", "")).strip(),
                                 quote=quote.strip()))
 
+    # 소재지를 요구하는 문장이 있는데 지역 요건이 하나도 안 나왔으면 흘린 것이다.
+    recovered = 0
+    duty = _region_duty_sentences(text)
+    if duty and not any(r.axis == AXIS_REGION for r in kept):
+        more = _recover_region(text, duty, kept)
+        kept += more
+        recovered = len(more)
+
     note = ""
     if dropped:
         note = f"공고문에서 근거를 찾지 못한 요건 {dropped}건을 제외했습니다."
+    if recovered:
+        note = (note + " " if note else "") + "AI가 놓친 소재지 요건을 보충했습니다."
     if not kept:
         kept = _fallback_requirements(fallback_text)
         note = (note + " " if note else "") + "AI가 요건을 찾지 못해 규칙 추출로 보완했습니다."
