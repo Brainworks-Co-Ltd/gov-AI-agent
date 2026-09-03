@@ -508,7 +508,7 @@ function renderDraft(draft) {
 function fillChatTargets(sections) {
   const sel = $("chat-target");
   const keep = sel.value;
-  sel.innerHTML = `<option value="">자동 — 말한 내용으로 판단</option>
+  sel.innerHTML = `<option value="">내용을 보고 항목 찾기</option>
     <option value="*">전체 항목</option>` +
     sections.map((s) => `<option>${escapeHtml(s.title)}</option>`).join("");
   sel.value = [...sel.options].some((o) => o.value === keep) ? keep : "";
@@ -532,12 +532,12 @@ async function openDraft(refresh, sections) {
   // 다른 공고의 초안을 열면 앞선 대화는 남겨 두면 안 된다 — "더 짧게" 같은 말이
   // 엉뚱한 공고의 맥락으로 이어진다.
   chatHistory = [];
-  $("chat-log").innerHTML = `<p class="empty small">무엇을 고칠지 적어 보세요.</p>`;
+  $("chat-log").innerHTML = `<p class="empty small">고칠 내용을 적으면 결과를 여기에서 보여 드립니다.</p>`;
   // 항목을 하나씩 따로 생성하므로(분량 확보) 항목 수만큼 시간이 걸린다.
   $("d-sections").innerHTML =
     `<p class="empty">초안을 만들고 있습니다…<br>항목마다 따로 써 내려가느라
      30초~1분 걸립니다. 잠시만 기다려 주세요.</p>`;
-  $("d-issues").innerHTML = `<p class="empty small">‘제출 전 점검’을 누르세요.</p>`;
+  $("d-issues").innerHTML = `<p class="empty small">‘제출 전 점검’을 누르면 확인할 내용을 보여 드립니다.</p>`;
   try {
     if (!refresh && !sections) {
       const saved = await api(noticeUrl(current.id, "draft"));
