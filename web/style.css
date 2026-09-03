@@ -413,6 +413,15 @@ main { padding: 24px 28px 60px; max-width: 1240px; }
 .empty.small { padding: 14px 0; text-align: left; font-size: 13px; background: none; border: none; }
 /* 공고함 상단 집계 — 담당자가 목록을 훑기 전에 판세를 먼저 본다 */
 .tally { display: flex; gap: 7px; margin: 0 0 10px; flex-wrap: wrap; }
+/* 집계 배지는 버튼이다. button 프리미티브의 면·그림자는 걷고 배지 모양만 남긴다.
+   고른 상태는 §3 의 border 토큰으로 안쪽 선을 그어 표시한다 — 바깥 테두리로 두면
+   크기가 1px 밀린다. */
+.tally .badge { cursor: pointer; box-shadow: none; transition: box-shadow .12s; }
+.tally .badge:hover { box-shadow: inset 0 0 0 1px var(--border-hover); }
+.tally .badge[aria-pressed="true"] { font-weight: 700; }
+.tally .badge.가능[aria-pressed="true"]    { box-shadow: inset 0 0 0 1.5px var(--ok-border); }
+.tally .badge.확인필요[aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px var(--chk-border); }
+.tally .badge.불가[aria-pressed="true"]    { box-shadow: inset 0 0 0 1.5px var(--no-border); }
 .hint { color: var(--muted-foreground); font-size: 13px; margin-top: 0; }
 
 h2 { font-size: 18px; margin: 0 0 4px; color: var(--foreground); letter-spacing: -.03em; }

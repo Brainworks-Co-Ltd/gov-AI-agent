@@ -191,17 +191,36 @@ function currentFilter() {
   return f;
 }
 
+/* 집계는 읽을 거리가 아니라 누를 수 있는 필터다. 숫자가 보이는데 누를 수 없으면
+   바로 옆 '판정' 드롭다운으로 다시 가야 해서, 읽히는 정보와 할 수 있는 일이 따로 논다.
+   서버가 판정 필터를 걸기 전 기준으로 세어 주므로 하나를 고른 뒤에도 옮겨 다닐 수 있다. */
 function renderTally(data) {
   const t = data.tally || {};
-  const left = data.total - data.judged;
+  // scope·pending 은 판정 필터 전 기준이다. 예전 응답 형태도 견디게 대비한다.
+  const left = data.pending != null ? data.pending
+    : Math.max(0, (data.scope != null ? data.scope : data.total) - data.judged);
+  const now = $("f-verdict").value;
   $("inbox-count").textContent = `사업 ${data.total}건`;
   $("inbox-tally").dataset.left = left;
+
+  const cell = (name, n) =>
+    `<button type="button" class="badge ${name}" data-verdict="${name}"` +
+    ` aria-pressed="${now === name}">${name} ${n}</button>`;
   $("inbox-tally").innerHTML =
-    `<span class="badge 가능">가능 ${t["가능"] || 0}</span>` +
-    `<span class="badge 확인필요">확인필요 ${t["확인필요"] || 0}</span>` +
-    `<span class="badge 불가">불가 ${t["불가"] || 0}</span>` +
-    (left > 0 ? `<span class="badge 미판정">미판정 ${left}</span>` : "");
+    cell("가능", t["가능"] || 0) + cell("확인필요", t["확인필요"] || 0) +
+    cell("불가", t["불가"] || 0) + (left > 0 ? cell("미판정", left) : "");
 }
+
+/* 같은 것을 다시 누르면 필터를 푼다. 드롭다운과 같은 값을 쓰므로 둘 중 무엇으로
+   골라도 서로 상태가 맞는다. '미판정'은 서버 필터에 없는 값이라 지금은 넘긴다. */
+$("inbox-tally").addEventListener("click", (e) => {
+  const hit = e.target.closest("[data-verdict]");
+  if (!hit) return;
+  const want = hit.dataset.verdict;
+  if (want === "미판정") return;
+  $("f-verdict").value = $("f-verdict").value === want ? "" : want;
+  loadNotices();
+});
 
 function summarizeItems(items) {
   const tally = { "가능": 0, "확인필요": 0, "불가": 0 };

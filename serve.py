@@ -175,7 +175,7 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             conn.close()
 
-    def _filtered(self, conn, query: dict) -> list[dict]:
+    def _filtered(self, conn, query: dict, skip_verdict: bool = False) -> list[dict]:
         """필터가 적용된 공고함 목록.
 
         **사업 단위**(중복 통합 후 대표 1건)로 내보낸다 — 목록에 기업마당 공고와
@@ -202,7 +202,7 @@ class Handler(BaseHTTPRequestHandler):
             items = [i for i in items
                      if i.get("d_day") is not None and 0 <= i["d_day"] <= limit]
         verdict = query.get("verdict", [""])[0].strip()
-        if verdict:
+        if verdict and not skip_verdict:
             items = [i for i in items if i.get("verdict") == verdict]
 
         # 키워드 검색. 낱말을 모두 포함해야 통과시킨다 — "광주 제조" 처럼 좁혀 가는
@@ -229,11 +229,17 @@ class Handler(BaseHTTPRequestHandler):
         return items
 
     def _notices(self, conn, query: dict) -> dict:
-        items = self._filtered(conn, query)
+        # 집계는 **판정 필터를 걸기 전** 목록에서 낸다. 걸린 뒤에 세면 '가능'을 고른
+        # 순간 나머지가 0으로 보여, 화면의 집계를 눌러 다른 판정으로 옮겨갈 수 없다.
+        base = self._filtered(conn, query, skip_verdict=True)
         tally = {"가능": 0, "확인필요": 0, "불가": 0}
-        for i in items:
+        for i in base:
             if i.get("verdict") in tally:
                 tally[i["verdict"]] += 1
+        pending = len(base) - sum(tally.values())
+
+        verdict = query.get("verdict", [""])[0].strip()
+        items = [i for i in base if i.get("verdict") == verdict] if verdict else base
 
         # 추천은 **지금 걸린 필터 안에서** 고른다. 화면에 안 보이는 공고를 추천하면
         # 눌렀을 때 목록에서 못 찾아 혼란스럽다.
@@ -248,6 +254,9 @@ class Handler(BaseHTTPRequestHandler):
 
         return {"items": items, "total": len(items),
                 "judged": sum(tally.values()), "tally": tally,
+                # 집계는 필터 전 기준이라 목록 길이와 다를 수 있다. 화면이 뱃지를
+                # 그릴 때 이 값을 쓰고, total 은 '지금 보고 있는 건수'로 둔다.
+                "scope": len(base), "pending": pending,
                 "recommended": [p for p in picks if p["item"]]}
 
     # ────────────────────────────────────────────────────────────── POST
