@@ -51,6 +51,10 @@
   --secondary: #e1e6f9;               /* gray-3 */
   --secondary-foreground: var(--foreground);
   --input: var(--border);
+  /* primary 5% — 사방 보더 대신 은은한 바탕으로 활성 상태를 표시한다 (TailGrids Sidebar Menu) */
+  --primary-soft: rgba(68, 90, 230, .05);
+  /* focus 링 20% — 불투명 채움은 요소 색을 덮는다 (TailGrids Input Field) */
+  --ring-soft: rgba(79, 104, 245, .20);
 
   --radius-xs: 6px;
   --radius-sm: 8px;
@@ -81,7 +85,7 @@ body {
 button {
   padding: 8px 15px; border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: var(--card); cursor: pointer; font-size: 13px; font-weight: 600;
-  font-family: inherit; color: var(--muted-foreground); letter-spacing: -.01em;
+  font-family: inherit; color: var(--muted-foreground); letter-spacing: 0;
   box-shadow: var(--shadow-card); transition: border-color .12s, background .12s, color .12s;
 }
 button:hover { border-color: var(--border-hover); color: var(--foreground); }
@@ -96,13 +100,13 @@ input[type=text], input[type=number], select, textarea {
 }
 input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
   outline: none; border-color: var(--border-hover);
-  box-shadow: 0 0 0 3px var(--accent);
+  box-shadow: 0 0 0 3px var(--ring-soft);
 }
 
 /* 판정 배지. 한글 modifier 는 백엔드 값이라 이름을 바꾸지 않는다. */
 .badge {
-  display: inline-block; padding: 3px 10px; border-radius: var(--radius-pill);
-  font-size: 12px; font-weight: 700; white-space: nowrap; letter-spacing: -.01em;
+  display: inline-block; padding: 4px 10px; border-radius: var(--radius-pill);
+  font-size: 12px; font-weight: 600; white-space: nowrap; letter-spacing: .02em;
   border: 1px solid transparent;
 }
 .badge.가능     { background: var(--ok-bg);      color: var(--ok-fg);      border-color: var(--ok-border); }
@@ -135,6 +139,8 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
   font-size: 12px; letter-spacing: .01em;
 }
 .grid tr:last-child td { border-bottom: none; }
+/* 행을 눈으로 따라갈 수 있게 한다 (TailGrids Table: 흰 배경 → Gray 50) */
+.grid tbody tr:hover td { background: var(--muted); }
 
 .chip {
   display: inline-block; padding: 3px 9px; border-radius: var(--radius-xs);
@@ -180,8 +186,10 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
 }
 .steps .tab:hover { background: var(--muted); color: var(--foreground); border-color: transparent; }
 .steps .tab.active {
-  background: var(--accent); color: var(--accent-foreground);
-  font-weight: 700; border-color: var(--border);
+  background: var(--primary-soft); color: var(--accent-foreground);
+  font-weight: 700; border-color: transparent;
+  border-right: 3px solid var(--primary); border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  margin-right: -12px; padding-right: 13px;   /* 레일 오른쪽 끝에 바를 붙인다 */
 }
 .step-n {
   width: 20px; height: 20px; flex: none; border-radius: var(--radius-xs);
@@ -388,7 +396,19 @@ ul.files .none { color: var(--muted-foreground); font-size: 13px; }
 .checklist .doc:hover { background: var(--muted); }
 .checklist .doc + .doc { border-top: 1px solid var(--border); }
 .checklist .doc.done .dname { color: var(--muted-foreground); text-decoration: line-through; }
-.checklist input { margin: 3px 0 0; }
+.checklist input { margin: 2px 0 0; }
+/* 브라우저 기본 체크박스는 OS마다 달라 화면 톤이 깨진다 */
+.checklist input[type=checkbox] {
+  appearance: none; width: 18px; height: 18px; flex: none;
+  border: 1px solid var(--border); border-radius: var(--radius-xs);
+  background: var(--card); cursor: pointer; display: grid; place-items: center;
+  transition: background .12s, border-color .12s;
+}
+.checklist input[type=checkbox]:checked { background: var(--primary); border-color: var(--primary); }
+.checklist input[type=checkbox]:checked::after {
+  content: ""; width: 5px; height: 9px; margin-top: -2px;
+  border: solid var(--primary-foreground); border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
 .checklist .kind {
   padding: 1px 6px; border-radius: var(--radius-xs); font-size: 11px; font-weight: 700;
   text-align: center; background: var(--muted); color: var(--muted-foreground);
