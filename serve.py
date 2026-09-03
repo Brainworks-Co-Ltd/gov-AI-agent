@@ -37,7 +37,8 @@ _WEB_DIR = os.path.join(os.path.dirname(__file__), "web")
 # web/ 폴더 안의 파일만 정적으로 내보낸다 (그 외 경로는 파일시스템에 접근하지 않음).
 _STATIC_TYPES = {".html": "text/html; charset=utf-8",
                  ".css": "text/css; charset=utf-8",
-                 ".js": "application/javascript; charset=utf-8"}
+                 ".js": "application/javascript; charset=utf-8",
+                 ".woff2": "font/woff2"}
 
 
 class Handler(BaseHTTPRequestHandler):
