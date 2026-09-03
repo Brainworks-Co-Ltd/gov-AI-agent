@@ -101,6 +101,36 @@ def _report_from_dict(d: dict, notice: Notice | None = None) -> EligibilityRepor
         note=d.get("note", ""))
 
 
+def cached_eligibility_of(conn: sqlite3.Connection, notice: Notice,
+                          profile: CompanyProfile | None = None) -> EligibilityReport | None:
+    """현재 입력과 정확히 일치하는 저장 판정만 돌려준다."""
+    profile = profile or profile_store.load()
+    siblings = _cluster_siblings(conn, notice)
+    phash = profile_store.hash_of(profile)
+    input_hash = verdict_input_hash(notice, profile, siblings)
+    cached = store.get_verdict(conn, notice.id, phash, input_hash)
+    return _report_from_dict(cached, notice) if cached else None
+
+
+def has_valid_verdict(conn: sqlite3.Connection, notice: Notice,
+                      profile: CompanyProfile | None = None) -> bool:
+    """백그라운드 갱신기가 이 공고를 건너뛰어도 되는지 확인한다."""
+    return cached_eligibility_of(conn, notice, profile) is not None
+
+
+def valid_verdicts(conn: sqlite3.Connection, notices: list[Notice],
+                   profile: CompanyProfile | None = None) -> dict[str, str]:
+    """목록에 표시해도 되는 최신 판정만 ``{공고 ID: 종합 판정}``으로 돌려준다."""
+    profile = profile or profile_store.load()
+    phash = profile_store.hash_of(profile)
+    input_hashes = {
+        notice.id: verdict_input_hash(notice, profile,
+                                      _cluster_siblings(conn, notice))
+        for notice in notices
+    }
+    return store.all_verdicts(conn, phash, input_hashes)
+
+
 def eligibility_of(conn: sqlite3.Connection, notice: Notice,
                    profile: CompanyProfile | None = None,
                    refresh: bool = False) -> EligibilityReport:

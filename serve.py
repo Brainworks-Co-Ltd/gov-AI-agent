@@ -25,7 +25,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from agent import editor, orchestrator, recommend
 from agent.schemas import CompanyProfile, Draft, DraftSection
-from tools import (hyperclova_api, ingest, keys, past_store, profile_store,
+from tools import (hyperclova_api, keys, past_store, profile_store, refresh,
                    store)
 
 try:
@@ -47,6 +47,7 @@ _STATIC_TYPES = {".html": "text/html; charset=utf-8",
 
 # 판정 순 정렬. 담당자가 먼저 볼 것부터 — 가능 → 확인필요 → 불가 → 미판정.
 _VERDICT_SORT = {"가능": 0, "확인필요": 1, "불가": 2}
+_REFRESH = refresh.RefreshCoordinator()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -127,6 +128,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"items": past_store.listing()})
             return
 
+        if path == "/api/refresh":
+            self._json(_REFRESH.status())
+            return
+
         conn = store.connect()
         try:
             if path == "/api/notices":
@@ -182,7 +187,7 @@ class Handler(BaseHTTPRequestHandler):
         notices = store.open_businesses(conn, include_closed=include_closed)
 
         profile = profile_store.load()
-        verdicts = store.all_verdicts(conn, profile_store.hash_of(profile))
+        verdicts = orchestrator.valid_verdicts(conn, notices, profile)
         items = [orchestrator.notice_view(conn, n, verdicts) for n in notices]
 
         region = query.get("region", [""])[0].strip()
@@ -245,30 +250,6 @@ class Handler(BaseHTTPRequestHandler):
                 "judged": sum(tally.values()), "tally": tally,
                 "recommended": [p for p in picks if p["item"]]}
 
-    def _judge_batch(self, conn, body: dict) -> dict:
-        """아직 판정하지 않은 공고를 조금씩 판정한다 (공고함 '전체 판정'용).
-
-        한 번에 다 돌리지 않는 이유: 공고 하나마다 LLM을 부르므로 수백 건이면 수십 분이
-        걸린다. 화면이 그동안 멈춰 있으면 담당자는 고장 난 줄 안다. 조금씩 끊어 돌리고
-        진행 상황을 돌려주면, 결과가 목록에 하나씩 채워지고 언제든 멈출 수 있다.
-        """
-        query = {k: [str(v)] for k, v in body.items() if v not in (None, "")}
-        items = self._filtered(conn, query)
-        todo = [i for i in items if not i.get("verdict")]
-        batch = todo[:max(1, min(int(body.get("limit", 4)), 10))]
-
-        profile = profile_store.load()
-        judged = []
-        for item in batch:
-            notice = store.get_notice(conn, item["id"])
-            if notice is None:
-                continue
-            report = orchestrator.eligibility_of(conn, notice, profile)
-            judged.append({"id": notice.id, "verdict": report.overall})
-
-        return {"judged": judged, "done": len(items) - len(todo) + len(judged),
-                "total": len(items), "remaining": len(todo) - len(judged)}
-
     # ────────────────────────────────────────────────────────────── POST
 
     def do_POST(self) -> None:
@@ -280,8 +261,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/ingest":
                 body = self._body()
-                self._json(ingest.run(use_llm=body.get("use_llm", True),
-                                      offline=body.get("offline", False)))
+                self._json(_REFRESH.start(
+                    collect_first=True, use_llm=body.get("use_llm", True),
+                    offline=body.get("offline", False)), 202)
                 return
             if path == "/api/past-applications":
                 # 파일을 그대로 본문으로 받는다. multipart 를 손으로 파싱하지 않으려고
@@ -308,11 +290,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             if path == "/api/judge":
-                conn = store.connect()
-                try:
-                    self._json(self._judge_batch(conn, self._body()))
-                finally:
-                    conn.close()
+                self._json(_REFRESH.start(collect_first=False), 202)
                 return
 
             conn = store.connect()

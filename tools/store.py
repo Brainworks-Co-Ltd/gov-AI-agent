@@ -275,11 +275,15 @@ def get_verdict(conn: sqlite3.Connection, notice_id: str,
     return json.loads(row["report_json"])
 
 
-def all_verdicts(conn: sqlite3.Connection, profile_hash: str) -> dict[str, str]:
-    """공고 목록 화면의 뱃지용 — {notice_id: 판정}. 프로필이 바뀐 건 제외."""
+def all_verdicts(conn: sqlite3.Connection, profile_hash: str,
+                 input_hashes: dict[str, str]) -> dict[str, str]:
+    """공고 목록 뱃지용 판정. 현재 입력 지문과 정확히 같은 행만 내보낸다."""
     return {r["notice_id"]: r["overall"]
-            for r in conn.execute("SELECT notice_id, overall, profile_hash FROM verdicts")
-            if r["profile_hash"] == profile_hash}
+            for r in conn.execute(
+                "SELECT notice_id, overall, profile_hash, input_hash FROM verdicts")
+            if r["profile_hash"] == profile_hash
+            and r["notice_id"] in input_hashes
+            and r["input_hash"] == input_hashes.get(r["notice_id"])}
 
 
 # ------------------------------------------------------------- form_specs

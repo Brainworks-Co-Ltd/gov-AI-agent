@@ -143,18 +143,6 @@ function renderTally(data) {
     `<span class="badge 확인필요">확인필요 ${t["확인필요"] || 0}</span>` +
     `<span class="badge 불가">불가 ${t["불가"] || 0}</span>` +
     (left > 0 ? `<span class="badge 미판정">미판정 ${left}</span>` : "");
-  $("btn-judge-all").disabled = left === 0;
-
-  // 미판정이 남아 있으면 묻지 않고 앞에서부터 판정을 시작한다.
-  // 한 건에 3.3초라 전건(수백 건)은 수십 분이 걸린다. 그래서 자동으로는 화면 맨
-  // 위 AUTO_JUDGE 건만 채우고, 나머지는 '목록 전체 판정' 버튼에 맡긴다.
-  // 같은 목록에서 두 번 돌지 않도록 필터 조합을 키로 기억한다.
-  const { sort, ...narrowing } = currentFilter();   // 정렬은 대상을 바꾸지 않는다
-  const key = JSON.stringify(narrowing);
-  if (left > 0 && !judging && autoKey !== key) {
-    autoKey = key;
-    judgeAll(AUTO_JUDGE);
-  }
 }
 
 /* 우리 회사에 맞는 공고를 맨 위로.
@@ -238,74 +226,77 @@ async function loadNotices() {
   }
 }
 
-/* 목록 전체 판정.
- *
- * 공고 하나마다 LLM을 부르므로 수백 건이면 수십 분이 걸린다. 한 번에 다 돌리면
- * 화면이 멈춘 것처럼 보이므로, 서버에 조금씩 나눠 요청하고 결과를 받는 대로 카드에
- * 반영한다. 그래서 담당자는 다 끝나기 전에도 '가능'부터 눈으로 집을 수 있고,
- * 중간에 멈출 수도 있다.
- */
-let judging = false;
-let autoKey = null;          // 자동 판정을 이미 돌린 필터 조합
-const AUTO_JUDGE = 12;       // 자동으로 채우는 건수 (배치 4 × 3회 ≈ 10초)
+/* 수집·판정은 서버의 백그라운드 작업 하나가 맡는다. 브라우저는 무거운 요청을
+   붙들지 않고 상태만 확인하므로, 탭을 옮기거나 새로고침해도 작업은 계속된다. */
+let refreshTimer = null;
+let observedRefresh = false;
 
-async function judgeAll(max = Infinity) {
-  if (judging) return;
-  judging = true;
-  $("btn-judge-all").hidden = true;
-  $("btn-judge-stop").hidden = false;
+function setRefreshButtons(running) {
+  $("btn-ingest").disabled = running;
+  $("btn-judge-all").disabled = running;
+}
 
-  try {
-    let judged = 0;
-    while (judging && judged < max) {
-      const limit = Math.min(4, max - judged);
-      const result = await post("/api/judge", { ...currentFilter(), limit });
-      judged += result.judged.length;
-      // 받은 판정을 카드에 바로 칠한다 (전체를 다시 불러오지 않는다).
-      result.judged.forEach((j) => {
-        const el = document.querySelector(`.card[data-id="${CSS.escape(j.id)}"] .badge`);
-        if (el) {
-          el.textContent = j.verdict;
-          el.className = "badge " + j.verdict;
-        }
-      });
-      $("ingest-log").textContent =
-        `판정 중… ${result.done}/${result.total}건 (남은 ${result.remaining}건)`;
-      if (!result.remaining || !result.judged.length) break;
+function refreshMessage(status) {
+  if (status.state === "running") {
+    if (status.phase === "collecting") {
+      return "기업마당·K-Startup 공고를 수집하고 중복을 통합하는 중입니다…";
     }
-    const rest = Number($("inbox-tally").dataset.left || 0) - judged;
-    $("ingest-log").textContent = !judging ? "판정을 멈췄습니다."
-      : max === Infinity || rest <= 0 ? "판정을 마쳤습니다."
-      : `앞에서 ${judged}건을 판정했습니다. 남은 ${rest}건은 ‘목록 전체 판정’을 누르세요.`;
+    return `판정 결과 갱신 중… ${status.done || 0}/${status.total || 0}건 ` +
+      `(기존 ${status.cached || 0}건 · 새로 ${status.refreshed || 0}건)`;
+  }
+  if (status.state === "failed") {
+    return "갱신 실패 — " + ((status.errors || [])[0] || "원인을 확인하지 못했습니다.");
+  }
+  if (status.state === "succeeded") {
+    const summary = `갱신 완료 — 새로 ${status.refreshed || 0}건 · ` +
+      `기존 ${status.cached || 0}건` +
+      (status.failed ? ` · 실패 ${status.failed}건` : "");
+    const notes = status.ingest && status.ingest.notes;
+    return notes && notes.length ? notes.join("\n") + "\n" + summary : summary;
+  }
+  return "";
+}
+
+async function pollRefresh() {
+  clearTimeout(refreshTimer);
+  try {
+    const status = await api("/api/refresh");
+    const running = status.state === "running";
+    setRefreshButtons(running);
+    if (running) {
+      observedRefresh = true;
+      $("ingest-log").textContent = refreshMessage(status);
+      refreshTimer = setTimeout(pollRefresh, 1000);
+      return;
+    }
+    if (observedRefresh) {
+      observedRefresh = false;
+      $("ingest-log").textContent = refreshMessage(status);
+      await loadNotices();
+    }
   } catch (e) {
-    $("ingest-log").textContent = "판정 실패 — " + e.message;
-  } finally {
-    judging = false;
-    $("btn-judge-all").hidden = false;
-    $("btn-judge-stop").hidden = true;
-    await loadNotices();          // 집계와 뱃지를 최종 상태로 맞춘다
+    setRefreshButtons(false);
+    $("ingest-log").textContent = "갱신 상태 확인 실패 — " + e.message;
   }
 }
 
-$("btn-judge-all").addEventListener("click", () => judgeAll());
-$("btn-judge-stop").addEventListener("click", () => { judging = false; });
-
-$("btn-ingest").addEventListener("click", async () => {
-  const btn = $("btn-ingest");
-  btn.disabled = true;
-  btn.textContent = "수집 중…";
-  $("ingest-log").textContent = "기업마당·K-Startup에서 공고를 받아오고 중복을 통합합니다…";
+async function startRefresh(path) {
+  setRefreshButtons(true);
   try {
-    const result = await post("/api/ingest", {});
-    $("ingest-log").textContent = result.notes.join("\n");
-    await loadNotices();
+    const status = await post(path, {});
+    observedRefresh = true;
+    $("ingest-log").textContent = status.started
+      ? "갱신 작업을 시작했습니다. 현재 목록은 저장된 결과로 계속 볼 수 있습니다."
+      : "이미 갱신 작업이 진행 중입니다.";
+    await pollRefresh();
   } catch (e) {
-    $("ingest-log").textContent = "수집 실패 — " + e.message;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "공고 새로 수집";
+    setRefreshButtons(false);
+    $("ingest-log").textContent = "갱신 요청 실패 — " + e.message;
   }
-});
+}
+
+$("btn-judge-all").addEventListener("click", () => startRefresh("/api/judge"));
+$("btn-ingest").addEventListener("click", () => startRefresh("/api/ingest"));
 
 ["f-q", "f-region", "f-within", "f-verdict", "f-sort"].forEach((id) => {
   const el = $(id);
@@ -979,3 +970,4 @@ loadStatus();
 loadNotices();
 loadProfile();
 loadPastList();
+pollRefresh();
