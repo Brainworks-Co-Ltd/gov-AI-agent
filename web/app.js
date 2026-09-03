@@ -114,10 +114,13 @@ function noticeCard(item) {
 // 현재 화면의 필터. 목록 조회와 '전체 판정'이 **같은 대상**을 보도록 한곳에서 만든다.
 function currentFilter() {
   const f = {};
+  const q = $("f-q").value.trim();
+  if (q) f.q = q;
   const region = $("f-region").value.trim();
   if (region) f.region = region;
   if ($("f-within").value) f.within = $("f-within").value;
   if ($("f-verdict").value) f.verdict = $("f-verdict").value;
+  if ($("f-sort").value) f.sort = $("f-sort").value;
   return f;
 }
 
@@ -137,7 +140,8 @@ function renderTally(data) {
   // 한 건에 3.3초라 전건(수백 건)은 수십 분이 걸린다. 그래서 자동으로는 화면 맨
   // 위 AUTO_JUDGE 건만 채우고, 나머지는 '목록 전체 판정' 버튼에 맡긴다.
   // 같은 목록에서 두 번 돌지 않도록 필터 조합을 키로 기억한다.
-  const key = JSON.stringify(currentFilter());
+  const { sort, ...narrowing } = currentFilter();   // 정렬은 대상을 바꾸지 않는다
+  const key = JSON.stringify(narrowing);
   if (left > 0 && !judging && autoKey !== key) {
     autoKey = key;
     judgeAll(AUTO_JUDGE);
@@ -176,21 +180,31 @@ function renderRecommended(picks) {
   });
 }
 
+/* 검색어를 치면 250ms 간격으로 요청이 나가는데 682건 응답이 그보다 오래 걸리면
+   요청이 겹친다. await 전에 목록을 비우던 탓에 늦게 온 옛 응답이 새 응답 뒤에
+   덧그려져 같은 카드가 여러 벌 쌓였다 (19건이 57건으로 보였다).
+   마지막으로 보낸 요청의 응답만 그린다. 비우는 것도 응답이 온 뒤로 미뤄
+   기다리는 동안 목록이 깜빡이지 않게 한다. */
+let loadSeq = 0;
+
 async function loadNotices() {
+  const seq = ++loadSeq;
   const params = new URLSearchParams(currentFilter());
   const list = $("notice-list");
-  list.innerHTML = "";
   try {
     const data = await api("/api/notices?" + params.toString());
+    if (seq !== loadSeq) return;          // 더 새 요청이 이미 떠났다
+    list.innerHTML = "";
     renderTally(data);
     renderRecommended(data.recommended);
     if (!data.items.length) {
       list.innerHTML = `<p class="empty">조건에 맞는 공고가 없습니다.
-        ‘공고 새로 수집’을 눌러보세요.</p>`;
+        검색어나 필터를 지워 보세요.</p>`;
       return;
     }
     data.items.forEach((item) => list.appendChild(noticeCard(item)));
   } catch (e) {
+    if (seq !== loadSeq) return;
     list.innerHTML = `<p class="empty">${escapeHtml(e.message)}</p>`;
   }
 }
@@ -264,9 +278,9 @@ $("btn-ingest").addEventListener("click", async () => {
   }
 });
 
-["f-region", "f-within", "f-verdict"].forEach((id) => {
+["f-q", "f-region", "f-within", "f-verdict", "f-sort"].forEach((id) => {
   const el = $(id);
-  el.addEventListener(id === "f-region" ? "input" : "change", () => {
+  el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => {
     clearTimeout(el._timer);
     el._timer = setTimeout(loadNotices, 250);   // 타이핑마다 요청하지 않도록
   });

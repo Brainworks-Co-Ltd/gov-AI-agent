@@ -262,10 +262,21 @@ main { padding: 24px 28px 60px; max-width: 1240px; }
   cursor: pointer; box-shadow: var(--shadow-card); transition: border-color .12s, color .12s;
 }
 .toolbar label[for]:hover { border-color: var(--border-hover); color: var(--foreground); }
-/* 툴바는 '데이터를 바꾸는 버튼' 다음에 '보기를 좁히는 필터'가 온다. 그 경계를
-   첫 label 앞의 세로선으로 긋는다. 집계는 흐름의 끝이라 오른쪽 끝으로 민다. */
-.toolbar > label:first-of-type { margin-left: 4px; padding-left: 16px; border-left: 1px solid var(--border-subtle); }
-.toolbar > .count { margin-left: auto; }
+/* 툴바는 세 덩이다 — 데이터를 바꾸는 버튼 · 목록을 좁히는 검색/필터 ·
+   결과를 다루는 정렬과 집계. 검색칸이 이미 테두리를 가지고 있어 세로선을 덧대면
+   선이 겹쳐 보이므로, 경계는 간격으로만 낸다. */
+.toolbar > input[type=search] { margin-left: 12px; }
+/* 정렬은 목록을 좁히지 않으므로 필터 무리에서 떼어 집계 옆으로 보낸다. */
+.toolbar > label:last-of-type { margin-left: auto; }
+.toolbar > .count { margin-left: 4px; }
+.toolbar input[type=search] {
+  padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-family: inherit; font-size: 13px; background: var(--card); color: var(--foreground);
+  transition: border-color .12s, box-shadow .12s;
+}
+.toolbar input[type=search]:focus {
+  outline: none; border-color: var(--border-hover); box-shadow: 0 0 0 3px var(--ring-soft);
+}
 .count { color: var(--muted-foreground); font-size: 12px; font-weight: 600; }
 .log { color: var(--muted-foreground); font-size: 12px; margin: 6px 0; min-height: 16px; white-space: pre-line; }
 .empty {

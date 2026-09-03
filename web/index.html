@@ -54,7 +54,30 @@
       <button id="btn-ingest" class="primary">공고 새로 수집</button>
       <button id="btn-judge-all">목록 전체 판정</button>
       <button id="btn-judge-stop" hidden>중지</button>
-      <label>지역 <input id="f-region" type="text" placeholder="예: 광주" size="8"></label>
+      <input id="f-q" type="search" placeholder="공고 검색 (예: 광주 제조)" size="18">
+      <label>지역
+        <select id="f-region">
+          <option value="">전체</option>
+          <option>전국</option>
+          <option>서울</option>
+          <option>경기</option>
+          <option>인천</option>
+          <option>부산</option>
+          <option>대구</option>
+          <option>광주</option>
+          <option>대전</option>
+          <option>울산</option>
+          <option>세종</option>
+          <option>강원</option>
+          <option>충북</option>
+          <option>충남</option>
+          <option>전북</option>
+          <option>전남</option>
+          <option>경북</option>
+          <option>경남</option>
+          <option>제주</option>
+        </select>
+      </label>
       <label>마감
         <select id="f-within">
           <option value="">전체</option>
@@ -69,6 +92,14 @@
           <option value="가능">가능</option>
           <option value="확인필요">확인필요</option>
           <option value="불가">불가</option>
+        </select>
+      </label>
+      <label>정렬
+        <select id="f-sort">
+          <option value="">마감 임박순</option>
+          <option value="far">마감 여유순</option>
+          <option value="recent">최근 공고순</option>
+          <option value="verdict">판정 순</option>
         </select>
       </label>
       <span id="inbox-count" class="count"></span>
