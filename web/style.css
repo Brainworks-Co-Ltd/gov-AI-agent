@@ -393,13 +393,31 @@ h3 { font-size: 15px; margin: 24px 0 10px; color: var(--foreground); letter-spac
   color: var(--accent-foreground); background: var(--accent); border-radius: var(--radius-sm);
 }
 .card .dday .i { width: 15px; height: 15px; stroke-width: 2.2; }
-.card .dday.urgent { background: var(--no-bg); color: var(--no-fg); }
-.card .dday.urgent .i { stroke: var(--no-solid); }
-.card .dday.quiet { background: var(--muted); color: var(--muted-foreground); }
-.card.pick .dday { background: var(--primary); color: var(--primary-foreground); }
+
+/* 상태는 아래로 갈수록 세다. 특이도가 모두 같으므로 순서가 곧 우선순위다.
+   배경·글자·아이콘을 한 규칙에서 함께 정한다 — 따로 두었더니 배경은 긴급,
+   아이콘은 추천 규칙이 이겨서 연분홍 위에 흰 아이콘이 얹혔다(안 보였다). */
+.card.pick .dday {                       /* 추천 — 채운 파랑 */
+  background: var(--primary); color: var(--primary-foreground);
+}
 .card.pick .dday .i { stroke: var(--primary-foreground); }
-/* 3일 이내 마감은 카드에서 제일 먼저 눈에 들어와야 한다. */
-.card .dday.urgent { color: var(--no-fg); background: var(--no-bg); }
+
+.card .dday.quiet,                       /* 상시·마감 — 스캔 대상이 아니라 낮춘다 */
+.card.pick .dday.quiet {
+  background: var(--muted); color: var(--muted-foreground);
+}
+.card .dday.quiet .i,
+.card.pick .dday.quiet .i { stroke: var(--muted-foreground); }
+
+/* 마감 임박 — 추천보다 세다. 마감은 놓치면 끝이고 추천은 다시 볼 수 있다.
+   기본 정렬이 마감 임박순이라 첫 화면 50장이 전부 긴급이다. 채운 빨강으로 두면
+   화면이 통째로 빨개져 신호가 아니라 바탕이 되므로, 연한 면에 진한 글자로 둔다. */
+.card .dday.urgent,
+.card.pick .dday.urgent {
+  background: var(--no-bg); color: var(--no-fg);
+}
+.card .dday.urgent .i,
+.card.pick .dday.urgent .i { stroke: var(--no-fg); }   /* 11.16:1 — 흰색은 1.11:1 이었다 */
 .card .grow { flex: 1; min-width: 0; }
 .card .title { font-weight: 700; color: var(--foreground); font-size: 15px; letter-spacing: -.02em; }
 .card .line2 { color: var(--muted-foreground); font-size: 12px; margin-top: 4px; }
