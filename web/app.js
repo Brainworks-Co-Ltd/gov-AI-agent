@@ -85,11 +85,15 @@ document.querySelectorAll(".tab").forEach((btn) =>
 async function loadStatus() {
   try {
     const s = await api("/api/status");
+    // 셋을 가운뎃점으로 이으면 좁은 레일에서 'K-' 와 'Startup' 이 갈렸다.
+    // 각각이 별개 사실이므로 한 줄에 하나씩 세운다.
     const mark = (ok, label) =>
-      `<span class="${ok ? "on" : "off"}">${label} ${ok ? "연결됨" : "미설정"}</span>`;
+      `<span class="${ok ? "on" : "off"}">` +
+      `<svg class="i" aria-hidden="true"><use href="#i-${ok ? "circle-check" : "circle-alert"}"/></svg>` +
+      `${label} ${ok ? "연결됨" : "미설정"}</span>`;
     $("status").innerHTML =
       [mark(s.ai, "하이퍼클로바X"), mark(s.bizinfo, "기업마당"),
-       mark(s.datagokr, "K-Startup")].join(" · ");
+       mark(s.datagokr, "K-Startup")].join("");
   } catch (e) {
     $("status").textContent = "상태를 확인할 수 없습니다.";
   }

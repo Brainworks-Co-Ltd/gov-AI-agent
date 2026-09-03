@@ -301,8 +301,19 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
 
 /* 한글은 어절 안에서 끊으면 안 읽힌다 — 'K-Startup 연결됨'이 'K-/Startup'으로 갈렸다. */
 .status { color: var(--muted-foreground); font-size: 12px; line-height: 1.7; word-break: keep-all; }
-.status .off { color: var(--no-fg); font-weight: 600; }
-.status .on { color: var(--ok-fg); font-weight: 600; }
+/* 셋이 각각 별개 사실이라 한 줄에 하나씩 세운다. 하이픈은 keep-all 로도 안 막혀서
+   ('K-' / 'Startup' 으로 갈렸다) 줄을 나눈 뒤 각 줄이 통째로 유지되게 한다. */
+.status .on, .status .off {
+  display: flex; align-items: center; gap: 6px;
+  font-weight: 600; white-space: nowrap;
+}
+.status .on + .on, .status .on + .off,
+.status .off + .on, .status .off + .off { margin-top: 4px; }
+.status .i { width: 13px; height: 13px; margin: 0; }
+.status .off { color: var(--no-fg); }
+.status .off .i { stroke: var(--no-solid); }
+.status .on { color: var(--ok-fg); }
+.status .on .i { stroke: var(--ok-solid); }
 
 /* ───────────────────────────────────────── 본문 */
 
