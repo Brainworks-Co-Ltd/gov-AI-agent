@@ -285,8 +285,21 @@ main { padding: 24px 28px 60px; max-width: 1240px; }
    .toolbar 는 네 군데서 쓰인다. last-of-type 으로 잡으면 프로필의 업로드
    툴바에서도 걸려(label 이 '파일 고르기' 하나뿐) 버튼 묶음이 통째로 오른쪽
    끝으로 밀렸다. 위치가 아니라 내용을 보고 고른다. */
-.toolbar > label:has(#f-sort) { margin-left: auto; }
+/* 예전에는 여기에 margin-left:auto 를 걸어 정렬·집계를 오른쪽으로 보냈다.
+   컨트롤이 여덟 개로 늘면서 1280px 에서 줄바꿈이 생겼는데, auto 마진이 남는 공간을
+   통째로 먹어 정렬 혼자 둘째 줄로 밀리고 큰 빈칸이 남았다. 흐름대로 둔다. */
 .toolbar > .count { margin-left: 4px; }
+
+/* 공고함 툴바는 컨트롤 여덟 개가 페이지 배경 위에 그냥 떠 있어서, 바로 위의
+   제목·설명과 같은 평면으로 읽혔다. 하나의 면에 얹어 '여기가 조작하는 자리'라고
+   자리로 말한다. 컨트롤 하나하나에 그림자를 더하지는 않는다 — 버튼은 떠 있고
+   (누르는 것) 입력칸은 테두리로 눌려 있는데(쓰는 것), 그 구분이 뜻을 갖는다.
+   .toolbar 는 네 곳에서 쓰이고 나머지 셋은 이미 .box 안이라 여기만 잡는다. */
+#tab-inbox > .toolbar {
+  background: var(--card); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-card);
+  padding: 12px 14px; row-gap: 10px;
+}
 .toolbar input[type=search] {
   padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
   font-family: inherit; font-size: 13px; background: var(--card); color: var(--foreground);
@@ -515,7 +528,6 @@ button.ghost { background: transparent; color: var(--muted-foreground); font-siz
      이름은 낱말이라 한 줄을 통째로 쓰고, 내용과 지우기가 아래 줄을 나눈다. */
   .pair { grid-template-columns: minmax(0, 1fr) auto; }
   .pair > :first-child { grid-column: 1 / -1; }
-  .toolbar > label:has(#f-sort) { margin-left: 0; }
 }
 
 
