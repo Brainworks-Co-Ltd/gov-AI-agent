@@ -94,6 +94,12 @@ button:hover { border-color: var(--border-hover); color: var(--foreground); }
 button.primary { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
 button.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
 button:disabled { opacity: .55; cursor: default; box-shadow: none; }
+/* primary 를 반투명하게 낮추면 파랑이 연보라로 떠 고장 난 것처럼 보인다.
+   비활성일 때는 눌리지 않는 면으로 내린다. */
+button.primary:disabled {
+  opacity: 1; background: var(--muted); color: var(--muted-foreground);
+  border-color: var(--border-subtle);
+}
 
 input[type=text], input[type=number], select, textarea {
   padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -169,6 +175,16 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
 }
+
+/* .box 는 면만 정의하고 패딩이 없었다. .sidecol 안에서만 패딩이 붙어 있어서
+   그 밖에서 쓴 두 곳(프로필 탭)은 글이 테두리에 붙어 버렸다. 프리미티브가
+   자기 여백을 갖게 한다 — 새로 만드는 박스마다 값을 또 정하지 않도록. */
+.box { padding: 16px 18px; }
+/* 첫 요소의 위 마진과 박스 패딩이 겹쳐 위아래가 어긋난다 (h3 는 위 24px 을 갖는다). */
+.box > :first-child { margin-top: 0; }
+.box > :last-child { margin-bottom: 0; }
+/* 한 줄이 170자까지 늘어나 눈이 다음 줄 첫머리를 못 찾는다. */
+.box > .hint { max-width: 72ch; }
 
 /* ═══════════════════════════════════════════════════ ③ 화면별 */
 
@@ -313,6 +329,8 @@ main { padding: 24px 28px 60px; max-width: 1240px; }
   border-color: var(--border-hover); box-shadow: none;
 }
 .count { color: var(--muted-foreground); font-size: 12px; font-weight: 600; }
+/* 프로필 탭의 박스는 앞 요소(설명·저장 버튼)에 그대로 붙어 있었다. */
+#tab-profile > .box { margin-top: 18px; }
 .log { color: var(--muted-foreground); font-size: 12px; margin: 6px 0; min-height: 16px; white-space: pre-line; }
 .empty {
   color: var(--muted-foreground); padding: 44px 0; text-align: center; font-size: 13px;
@@ -405,9 +423,14 @@ ul.plain li { margin: 4px 0; }
 
 /* 첨부파일 — 담당자가 실제로 눌러서 받는 링크라 버튼처럼 보이게 한다. */
 ul.files { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
-ul.files li { margin: 0; }
+/* flex 항목의 min-width 기본값(auto)은 내용물 폭 아래로 줄어들지 않는다. 그래서
+   긴 파일명이 칩을 화면 밖으로 밀어냈다. .sidecol 에만 고쳐 두었던 것을 원래
+   자리인 프리미티브로 올린다. */
+ul.files li { margin: 0; min-width: 0; max-width: 100%; }
 ul.files a {
-  display: inline-flex; align-items: center; gap: 8px; max-width: 460px;
+  /* 460px 을 그대로 두면 375px 화면에서 칩이 화면 밖으로 나가 가로 스크롤이 났다.
+     넓은 화면에서는 460px 로 묶고, 좁으면 부모 폭을 넘지 않는다. */
+  display: inline-flex; align-items: center; gap: 8px; max-width: min(460px, 100%); min-width: 0;
   padding: 8px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: var(--card); color: var(--muted-foreground); text-decoration: none; font-size: 13px;
   box-shadow: var(--shadow-card); transition: border-color .12s, color .12s;
