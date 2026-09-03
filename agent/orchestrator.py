@@ -20,7 +20,6 @@ from dataclasses import replace
 from agent import checker, drafter, eligibility, formspec
 from agent.schemas import (CheckIssue, CompanyProfile, Draft, DraftSection,
                            EligibilityReport, Notice, Requirement, RequirementVerdict)
-from agent.structure import NoticeStructurer, NoticeExtraction, StructuringError
 from tools import profile_store, store
 
 
@@ -48,6 +47,12 @@ def structure_notice(text: str, *,
     apply_rules: 결정적 후처리(요일 제거, 항목 분리 등) 적용 여부.
     refine: 지원대상·신청제외대상을 필드 단위로 다시 뽑아 보강할지 여부.
     """
+    # agent.structure 는 pydantic 을 쓴다. 모듈 최상단에서 불러오면 서버가 뜰 때
+    # 함께 로드돼, pydantic 이 없는 환경에서는 import 만으로 서버가 죽는다
+    # (배포에서 ModuleNotFoundError 로 실제로 죽었다). 이 함수는 골든셋 도구에서만
+    # 쓰이고 웹 요청 경로에는 없으므로, 필요할 때만 불러온다.
+    from agent.structure import NoticeStructurer
+
     structurer = NoticeStructurer()
     extraction = structurer.structure_document(
         text, pages=pages, apply_rules=apply_rules, refine=refine,
