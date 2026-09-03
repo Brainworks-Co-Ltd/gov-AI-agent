@@ -78,7 +78,7 @@ body {
 }
 
 /* 키보드 이동이 어디 있는지 항상 보이게 한다. */
-:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 /* ═══════════════════════════════════════════════════ ② 프리미티브 */
 
