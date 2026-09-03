@@ -243,6 +243,16 @@
       <h1>회사 프로필</h1>
       <p class="sub">여기 값이 자격 판정과 신청서 초안의 기준이 됩니다. 고치면 이전 판정은 자동으로 다시 계산됩니다.</p>
     </div>
+    <!-- 처음 들어온 사람에게는 공고함보다 여기가 먼저다. 판정에 쓰이는 값이
+         비어 있으면 무엇을 왜 채워야 하는지 먼저 말한다. 다 채워져 있으면
+         이 상자는 나오지 않고 곧장 공고함으로 간다. -->
+    <div class="box" id="profile-onboard" hidden>
+      <h3>먼저 회사 정보를 채워 주세요</h3>
+      <p class="hint" id="onboard-why"></p>
+      <p class="hint">나머지 항목은 신청서 초안을 쓸 때 쓰입니다. 지금 비워 둬도
+        공고를 보고 자격을 판정하는 데는 지장이 없습니다.</p>
+    </div>
+
     <form id="profile-form" class="form"></form>
     <button id="btn-save-profile" class="primary">프로필 저장</button>
     <span id="profile-saved" class="count"></span>

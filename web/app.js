@@ -706,6 +706,20 @@ $("chat-text").addEventListener("keydown", (e) => {
 // ─────────────────────────────────────────────────────── 회사 프로필
 
 // [키, 라벨, 종류]. 자격 판정이 실제로 쓰는 항목만 노출한다.
+/* 자격 판정이 실제로 읽는 값. agent/eligibility.py 의 _judge_region(p.region,
+   p.region_detail) · _judge_years(p.founded) · _judge_size(p.employees,
+   p.revenue_krw) · _judge_industry(p.industry) 와 1:1이다. 이 중 하나라도
+   비어 있으면 그 축은 판정이 안 되고 '확인필요'로 밀린다. */
+const JUDGE_FIELDS = ["region", "region_detail", "founded",
+                      "employees", "revenue_krw", "industry"];
+
+function profileGaps(p) {
+  return JUDGE_FIELDS.filter((k) => {
+    const v = p[k];
+    return v === "" || v === null || v === undefined || v === 0;
+  });
+}
+
 const PROFILE_FIELDS = [
   ["name", "회사명", "text"], ["ceo", "대표자", "text"],
   ["biz_no", "사업자등록번호", "text"],
@@ -750,7 +764,9 @@ function renderProfile(p) {
         <div id="p-${key}" class="pairs"></div>
         <button type="button" class="ghost" id="p-${key}-add">+ 항목 추가</button></div>`;
     }
-    return `<div class="field"><label for="p-${key}">${label}</label>
+    // 어느 값이 판정을 좌우하는지 폼 위에서 바로 보이게 한다.
+    const must = JUDGE_FIELDS.includes(key) ? ` <span class="chip">판정 필수</span>` : "";
+    return `<div class="field"><label for="p-${key}">${label}${must}</label>
       <input type="${kind}" id="p-${key}" value="${escapeHtml(value ?? "")}"></div>`;
   }).join("");
 
@@ -793,9 +809,28 @@ function pairRow(name, value) {
   return row;
 }
 
+/* 안내 상자를 지금 상태에 맞춘다. 채워야 할 게 남았으면 무엇이 왜 필요한지
+   적고, 다 찼으면 상자를 감춘다. 돌려주는 값은 '아직 비었는가'다. */
+function renderOnboard(p) {
+  const labels = Object.fromEntries(PROFILE_FIELDS.map(([k, l]) => [k, l]));
+  const gaps = profileGaps(p);
+  $("profile-onboard").hidden = !gaps.length;
+  if (gaps.length) {
+    $("onboard-why").innerHTML =
+      // 라벨의 형식 안내 괄호("설립일 (YYYY-MM-DD)")는 문장 안에서 읽기 나쁘다.
+      `자격 판정은 <b>${gaps.map((k) => escapeHtml((labels[k] || k).replace(/\s*\(.*\)/, ""))).join("</b>, <b>")}</b>`
+      + ` 값을 보고 합니다. 비어 있으면 그 요건은 판정하지 못하고 ‘확인필요’로 남습니다.`;
+  }
+  return gaps.length > 0;
+}
+
 async function loadProfile() {
   try {
-    renderProfile(await api("/api/profile"));
+    const p = await api("/api/profile");
+    renderProfile(p);
+    // 판정에 쓸 값이 없는 채로 공고함을 열면 682건이 전부 '확인필요'로만 나온다.
+    // 그 화면은 도구가 뭘 하는지 보여주지 못하므로, 처음에는 여기부터 보인다.
+    if (renderOnboard(p)) showTab("profile");
   } catch (e) {
     $("profile-form").innerHTML = `<p class="empty">${escapeHtml(e.message)}</p>`;
   }
@@ -821,11 +856,16 @@ $("btn-save-profile").addEventListener("click", async () => {
     } else payload[key] = el.value;
   });
   try {
-    renderProfile(await post("/api/profile", payload));
+    const saved = await post("/api/profile", payload);
+    const wasIncomplete = !$("profile-onboard").hidden;
+    renderProfile(saved);
+    const stillIncomplete = renderOnboard(saved);
     $("profile-saved").textContent =
       "저장했습니다. 프로필이 바뀌었으므로 판정을 다시 계산합니다.";
     autoKey = null;
     await loadNotices();
+    // 처음 채운 사람은 여기서 멈추면 다음에 뭘 할지 모른다. 공고함으로 넘긴다.
+    if (wasIncomplete && !stillIncomplete) showTab("inbox");
   } catch (e) {
     $("profile-saved").textContent = "저장 실패 — " + e.message;
   }

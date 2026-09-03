@@ -487,7 +487,10 @@ button.ghost { background: transparent; color: var(--muted-foreground); font-siz
 /* 휴대폰 폭. 두 칸 폼도 여기서는 글자가 끊긴다. */
 @media (max-width: 560px) {
   .form { grid-template-columns: minmax(0, 1fr); }
+  /* 이름·내용·지우기 셋을 두 칸에 넣으면 지우기가 줄바꿈된다.
+     이름은 낱말이라 한 줄을 통째로 쓰고, 내용과 지우기가 아래 줄을 나눈다. */
   .pair { grid-template-columns: minmax(0, 1fr) auto; }
+  .pair > :first-child { grid-column: 1 / -1; }
   .toolbar > label:has(#f-sort) { margin-left: 0; }
 }
 
