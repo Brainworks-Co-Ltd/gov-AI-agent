@@ -189,6 +189,26 @@ function renderRecommended(picks) {
   });
 }
 
+const PAGE = 50;                 // 한 번에 그리는 카드 수
+
+/* 682건을 한 번에 그리면 문서가 62,550px(87 화면)이 되고, 카드가 포커스를 받게 된
+   뒤로는 목록을 지나 다음 컨트롤로 가는 데만 탭을 682번 눌러야 한다. 처음에는 50장만
+   그리고 나머지는 눌러서 잇는다. 데이터는 이미 받아 놓았으므로 요청은 더 없다. */
+function renderCards(list, items) {
+  let shown = 0;
+  const more = document.createElement("button");
+  const draw = () => {
+    items.slice(shown, shown + PAGE)
+         .forEach((it) => list.insertBefore(noticeCard(it), more));
+    shown = Math.min(shown + PAGE, items.length);
+    more.textContent = `공고 ${items.length - shown}건 더 보기`;
+    more.hidden = shown >= items.length;
+  };
+  more.addEventListener("click", draw);
+  list.appendChild(more);
+  draw();
+}
+
 /* 검색어를 치면 250ms 간격으로 요청이 나가는데 682건 응답이 그보다 오래 걸리면
    요청이 겹친다. await 전에 목록을 비우던 탓에 늦게 온 옛 응답이 새 응답 뒤에
    덧그려져 같은 카드가 여러 벌 쌓였다 (19건이 57건으로 보였다).
@@ -211,7 +231,7 @@ async function loadNotices() {
         검색어나 필터를 지워 보세요.</p>`;
       return;
     }
-    data.items.forEach((item) => list.appendChild(noticeCard(item)));
+    renderCards(list, data.items);
   } catch (e) {
     if (seq !== loadSeq) return;
     list.innerHTML = `<p class="empty">${escapeHtml(e.message)}</p>`;

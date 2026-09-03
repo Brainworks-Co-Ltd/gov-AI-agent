@@ -313,6 +313,8 @@ h3 { font-size: 14px; margin: 24px 0 10px; color: var(--foreground); letter-spac
 /* ───────────────────────────────────────── ① 공고함 카드 */
 
 .cards { display: grid; gap: 11px; }
+/* 목록을 잇는 버튼. 카드와 같은 폭으로 깔아 목록의 끝이라는 걸 자리로 말한다. */
+.cards > button { width: 100%; padding: 12px; margin-top: 2px; }
 .card .dday {
   min-width: 66px; text-align: center; font-weight: 800; font-size: 15px;
   color: var(--accent-foreground); letter-spacing: -.04em;
