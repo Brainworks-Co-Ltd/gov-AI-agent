@@ -284,8 +284,12 @@
     </div>
 
     <form id="profile-form" class="form"></form>
-    <button id="btn-save-profile" class="primary"><svg class="i" aria-hidden="true"><use href="#i-save"/></svg>프로필 저장</button>
-    <span id="profile-saved" class="count"></span>
+    <!-- 여백은 컨테이너가 준다. 맨몸으로 두면 버튼과 문구 사이가 공백문자가 접힌
+         3px 이 되어 글자가 버튼에 달라붙는다. 다른 화면과 같은 .toolbar 를 쓴다. -->
+    <div class="toolbar">
+      <button id="btn-save-profile" class="primary"><svg class="i" aria-hidden="true"><use href="#i-save"/></svg>프로필 저장</button>
+      <span id="profile-saved" class="count"></span>
+    </div>
 
     <!-- 프로필 폼과 나란한 별개의 입력이므로 같은 카드 면 위에 올린다.
          밖에 두면 '프로필 저장' 버튼에 딸린 것처럼 보인다. -->
