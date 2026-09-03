@@ -12,6 +12,8 @@ DB 캐시를 여기서 다룬다. 판정과 초안은 LLM을 부르는 비싼 �
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import sqlite3
 from dataclasses import replace
 
@@ -20,6 +22,11 @@ from agent.schemas import (CheckIssue, CompanyProfile, Draft, DraftSection,
                            EligibilityReport, Notice, Requirement, RequirementVerdict)
 from agent.structure import NoticeStructurer, NoticeExtraction, StructuringError
 from tools import profile_store, store
+
+
+# 판정 규칙·프롬프트의 의미가 바뀌면 올린다. 코드 배포 뒤에도 예전 판정을 유효한
+# 결과로 오인하지 않도록 캐시 입력에 포함한다.
+VERDICT_CACHE_VERSION = "1"
 
 
 def structure_notice(text: str, *,
@@ -63,16 +70,35 @@ def _cluster_siblings(conn: sqlite3.Connection, notice: Notice) -> list[Notice]:
     return [n for n in siblings if n is not None]
 
 
-def _report_from_dict(d: dict) -> EligibilityReport:
+def verdict_input_hash(notice: Notice, profile: CompanyProfile,
+                       siblings: list[Notice] | None = None,
+                       version: str = VERDICT_CACHE_VERSION) -> str:
+    """같은 판정 결과를 재사용해도 되는지 확인하는 입력 지문."""
+    payload = {
+        "version": version,
+        "profile_hash": profile_store.hash_of(profile),
+        # eligibility.evaluate()가 읽는 순서와 텍스트를 그대로 지문에 넣는다.
+        "notices": [{"id": n.id, "text": n.full_text()}
+                    for n in [notice, *(siblings or [])]],
+    }
+    blob = json.dumps(payload, ensure_ascii=False, sort_keys=True,
+                      separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def _report_from_dict(d: dict, notice: Notice | None = None) -> EligibilityReport:
     """캐시된 JSON을 다시 리포트 객체로. (화면·점검이 같은 형태를 쓰도록)"""
     rows = [RequirementVerdict(
         requirement=Requirement(axis=r["axis"], operator=r["operator"],
                                 value=r["value"], quote=r["quote"]),
         verdict=r["verdict"], company_value=r["company_value"], reason=r["reason"])
         for r in d.get("rows", [])]
-    return EligibilityReport(notice_id=d["notice_id"], overall=d["overall"], rows=rows,
-                             required_docs=d.get("required_docs", []),
-                             schedule=d.get("schedule", {}), note=d.get("note", ""))
+    return EligibilityReport(
+        notice_id=d["notice_id"], overall=d["overall"], rows=rows,
+        required_docs=d.get("required_docs", []),
+        # D-day는 시간이 지나면 달라진다. 판정을 다시 하지 않고 현재 날짜로만 갱신한다.
+        schedule=eligibility.build_schedule(notice) if notice else d.get("schedule", {}),
+        note=d.get("note", ""))
 
 
 def eligibility_of(conn: sqlite3.Connection, notice: Notice,
@@ -81,14 +107,17 @@ def eligibility_of(conn: sqlite3.Connection, notice: Notice,
     """자격 판정. 캐시가 유효하면 재사용한다."""
     profile = profile or profile_store.load()
     phash = profile_store.hash_of(profile)
+    siblings = _cluster_siblings(conn, notice)
+    input_hash = verdict_input_hash(notice, profile, siblings)
 
     if not refresh:
-        cached = store.get_verdict(conn, notice.id, phash)
+        cached = store.get_verdict(conn, notice.id, phash, input_hash)
         if cached:
-            return _report_from_dict(cached)
+            return _report_from_dict(cached, notice)
 
-    report = eligibility.evaluate(notice, profile, _cluster_siblings(conn, notice))
-    store.save_verdict(conn, notice.id, report.overall, report.to_dict(), phash)
+    report = eligibility.evaluate(notice, profile, siblings)
+    store.save_verdict(conn, notice.id, report.overall, report.to_dict(), phash,
+                       input_hash)
     return report
 
 

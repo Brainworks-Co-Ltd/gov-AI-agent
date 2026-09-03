@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS verdicts (
     overall      TEXT NOT NULL,
     report_json  TEXT NOT NULL,
     profile_hash TEXT NOT NULL,             -- 프로필이 바뀌면 캐시를 버려야 한다
+    input_hash   TEXT,                      -- 프로필·공고문·판정 버전이 모두 같은지 확인
     created_at   TEXT
 );
 
@@ -87,7 +88,10 @@ CREATE TABLE IF NOT EXISTS drafts (
 # 나중에 추가된 컬럼들. CREATE TABLE IF NOT EXISTS 는 **이미 있는 표를 고치지 않으므로**,
 # 예전에 만들어 둔 app.db 를 쓰는 사람에게는 이 컬럼이 없다. 그대로 두면 INSERT 가
 # "no such column" 으로 죽는다 — DB를 지우라고 안내하는 대신 조용히 채워 넣는다.
-_ADDED_COLUMNS = {"notices": {"attachments": "TEXT"}}
+_ADDED_COLUMNS = {
+    "notices": {"attachments": "TEXT"},
+    "verdicts": {"input_hash": "TEXT"},
+}
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
@@ -101,8 +105,12 @@ def _migrate(conn: sqlite3.Connection) -> None:
 
 def connect() -> sqlite3.Connection:
     os.makedirs(_DATA_DIR, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=5.0)
     conn.row_factory = sqlite3.Row
+    # 판정 갱신이 결과를 쓰는 동안에도 공고 목록은 마지막 커밋 상태를 읽을 수 있다.
+    # WAL은 같은 호스트의 로컬 파일에서만 사용한다.
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     conn.executescript(_SCHEMA)
     _migrate(conn)
     return conn
@@ -240,27 +248,29 @@ def cluster_of(conn: sqlite3.Connection, notice_id: str) -> dict | None:
 # --------------------------------------------------------------- verdicts
 
 def save_verdict(conn: sqlite3.Connection, notice_id: str, overall: str,
-                 report: dict, profile_hash: str) -> None:
+                 report: dict, profile_hash: str, input_hash: str) -> None:
     conn.execute(
-        "INSERT INTO verdicts (notice_id, overall, report_json, profile_hash, created_at) "
-        "VALUES (?,?,?,?,?) ON CONFLICT(notice_id) DO UPDATE SET "
+        "INSERT INTO verdicts "
+        "(notice_id, overall, report_json, profile_hash, input_hash, created_at) "
+        "VALUES (?,?,?,?,?,?) ON CONFLICT(notice_id) DO UPDATE SET "
         "overall=excluded.overall, report_json=excluded.report_json, "
-        "profile_hash=excluded.profile_hash, created_at=excluded.created_at",
+        "profile_hash=excluded.profile_hash, input_hash=excluded.input_hash, "
+        "created_at=excluded.created_at",
         (notice_id, overall, json.dumps(report, ensure_ascii=False), profile_hash,
-         date.today().isoformat()))
+         input_hash, date.today().isoformat()))
     conn.commit()
 
 
 def get_verdict(conn: sqlite3.Connection, notice_id: str,
-                profile_hash: str) -> dict | None:
-    """캐시된 판정을 돌려준다. 회사 프로필이 바뀌었으면(해시 불일치) None.
+                profile_hash: str, input_hash: str) -> dict | None:
+    """캐시된 판정을 돌려준다. 판정 입력이 하나라도 바뀌었으면 None.
 
-    프로필이 판정의 절반이므로, 담당자가 업력·인원을 고치면 이전 판정은 무효다.
-    해시로 이걸 자동 처리해서 '고쳤는데 결과가 그대로'인 혼란을 막는다.
+    프로필뿐 아니라 공고문·중복 묶음·판정 버전도 함께 비교한다. 예전 스키마에서
+    마이그레이션된 행은 input_hash가 NULL이라 한 번만 다시 판정된다.
     """
     row = conn.execute("SELECT * FROM verdicts WHERE notice_id = ?",
                        (notice_id,)).fetchone()
-    if not row or row["profile_hash"] != profile_hash:
+    if not row or row["profile_hash"] != profile_hash or row["input_hash"] != input_hash:
         return None
     return json.loads(row["report_json"])
 
