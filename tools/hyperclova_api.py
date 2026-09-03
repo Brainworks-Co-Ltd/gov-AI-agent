@@ -10,6 +10,7 @@ API 키는 프로젝트 폴더의 clova_api_key.txt 파일에서 읽는다.
 from __future__ import annotations
 import json
 import os
+import time
 import uuid
 import urllib.request
 import urllib.error
@@ -89,24 +90,55 @@ def tuned_task_id() -> str | None:
     return task_id
 
 
+# 429(호출 한도 초과)를 만났을 때 기다렸다 다시 부르는 횟수와 간격.
+#
+# 초안은 항목마다 따로 부르고 짧으면 이어쓰기까지 하므로, 초안 한 건에 호출이 열 번
+# 가까이 몰린다. 실제로 이 때문에 4개 항목 중 2개만 생성되고 나머지는 429로 조용히
+# 빠졌다. 담당자 눈에는 "초안이 짧다"로만 보여서 원인을 알 수 없다.
+_RETRY_STATUS = {429, 500, 502, 503, 504}
+_RETRY_WAITS = (2.0, 5.0, 12.0)
+
+
 def _post(url: str, body: dict, timeout: int = 60) -> dict:
-    """CLOVA Studio 공통 호출부. 상태코드 20000만 성공으로 본다."""
+    """CLOVA Studio 공통 호출부. 상태코드 20000만 성공으로 본다.
+
+    호출 한도(429)와 일시적인 서버 오류(5xx)는 잠시 기다렸다 다시 부른다. 그 밖의
+    오류(키 오류·잘못된 요청)는 다시 불러도 같은 결과라 바로 올린다.
+    """
     key = _load_key()
     if not key:
         raise RuntimeError("clova_api_key.txt 에 API 키가 없습니다.")
 
     data = json.dumps(body).encode("utf-8")
-    req = urllib.request.Request(url, data=data, method="POST")
-    req.add_header("Authorization", "Bearer " + key)
-    req.add_header("Content-Type", "application/json")
-    req.add_header("X-NCP-CLOVASTUDIO-REQUEST-ID", uuid.uuid4().hex)
 
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode("utf-8", "ignore")[:300]
-        raise RuntimeError(f"HTTP {e.code} — {detail}") from None
+    last: Exception | None = None
+    for attempt in range(len(_RETRY_WAITS) + 1):
+        req = urllib.request.Request(url, data=data, method="POST")
+        req.add_header("Authorization", "Bearer " + key)
+        req.add_header("Content-Type", "application/json")
+        # 요청 ID는 호출마다 새로 만든다 — 재시도까지 같은 ID로 보내면 중복 요청으로
+        # 처리될 수 있다.
+        req.add_header("X-NCP-CLOVASTUDIO-REQUEST-ID", uuid.uuid4().hex)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+            break
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode("utf-8", "ignore")[:300]
+            last = RuntimeError(f"HTTP {e.code} — {detail}")
+            if e.code not in _RETRY_STATUS or attempt == len(_RETRY_WAITS):
+                raise last from None
+            wait = _RETRY_WAITS[attempt]
+            # 서버가 알려 주는 대기 시간이 있으면 그쪽을 따른다.
+            try:
+                wait = max(wait, float(e.headers.get("Retry-After") or 0))
+            except (TypeError, ValueError):
+                pass
+            print(f"[알림] HTTP {e.code} — {wait:.0f}초 뒤 다시 시도합니다 "
+                  f"({attempt + 1}/{len(_RETRY_WAITS)})")
+            time.sleep(wait)
+    else:                                   # pragma: no cover - 위 break로 끝난다
+        raise last or RuntimeError("호출에 실패했습니다.")
 
     status = payload.get("status", {})
     if status.get("code") != "20000":

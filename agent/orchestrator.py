@@ -138,6 +138,31 @@ def draft_of(conn: sqlite3.Connection, notice: Notice,
     return draft
 
 
+def save_edited_draft(conn: sqlite3.Connection, notice: Notice,
+                      sections: list[dict], unresolved: list[str]) -> None:
+    """대화로 고친 초안을 저장한다.
+
+    저장해 두지 않으면 화면을 닫는 순간 사라진다 — 담당자 입장에서는 고쳐 달라고
+    말해서 고쳐진 글이 없어지는 것이라, 대화 기능 자체를 못 믿게 된다.
+
+    서식 정보(form_file·form_fields)는 저장돼 있던 것을 그대로 이어 쓴다. 본문만
+    바뀌었을 뿐 어느 서식에 옮겨 담을지는 달라지지 않았다.
+    """
+    saved = store.get_draft(conn, notice.id) or {}
+    previous = saved.get("draft") or {}
+    draft = Draft(
+        notice_id=notice.id,
+        sections=[DraftSection(title=s.get("title", ""), body=s.get("body", ""),
+                               sources=s.get("sources") or [])
+                  for s in sections],
+        unresolved=unresolved,
+        note=previous.get("note", ""),
+        form_file=previous.get("form_file", ""),
+        form_fields=previous.get("form_fields", []),
+    )
+    store.save_draft(conn, notice.id, draft.to_dict())
+
+
 def required_docs_of(conn: sqlite3.Connection, notice: Notice,
                      profile: CompanyProfile | None = None) -> list[str]:
     """이 공고가 요구하는 제출서류 목록.

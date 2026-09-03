@@ -23,7 +23,7 @@ import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-from agent import orchestrator, recommend
+from agent import editor, orchestrator, recommend
 from agent.schemas import CompanyProfile, Draft, DraftSection
 from tools import (hyperclova_api, ingest, keys, past_store, profile_store,
                    store)
@@ -300,6 +300,27 @@ class Handler(BaseHTTPRequestHandler):
                         sections=sections or None)
                     self._json(draft.to_dict())
                     return
+                if tail == "chat":
+                    # 대화로 초안 고치기. **화면에 보이는 글**을 받아서 고친다 —
+                    # 저장된 초안을 고치면 담당자가 방금 손으로 쓴 문장이 날아간다.
+                    body = self._body()
+                    sections = [s for s in (body.get("sections") or [])
+                                if isinstance(s, dict)]
+                    if not sections:
+                        self._json({"error": "고칠 초안이 없습니다."}, 400)
+                        return
+                    spec = orchestrator.form_spec_of(conn, notice)
+                    result = editor.chat(
+                        notice, profile_store.load(), sections,
+                        str(body.get("message") or ""),
+                        history=body.get("history") or [],
+                        notice_text=spec.get("notice_text", ""))
+                    # 고친 결과를 저장해 둔다. 화면을 닫았다 열어도 남아 있어야 한다.
+                    if result.get("changed"):
+                        orchestrator.save_edited_draft(conn, notice, result["sections"],
+                                                       result.get("unresolved") or [])
+                    self._json(result)
+                    return
                 if tail == "checklist":
                     # 담당자가 체크한 상태를 그대로 저장한다. 서류를 실제로 뗐는지는
                     # 사람만 아는 정보라 도구가 판단하지 않는다.
@@ -344,7 +365,7 @@ def _split_notice_path(path: str) -> tuple[str | None, str]:
     rest = path[len(prefix):]
     if not rest:
         return None, ""
-    known = ("eligibility", "draft", "check", "checklist")
+    known = ("eligibility", "draft", "check", "checklist", "chat")
     head, _, tail = rest.rpartition("/")
     if tail in known and head:
         return unquote(head), tail

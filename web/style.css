@@ -193,6 +193,27 @@ ul.files .none { color: var(--muted); font-size: 13px; }
 .issue .msg { font-size: 13px; }
 .issue .fix { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
+/* ─────────────────────────────────────────── 말로 고치기 (대화 Agent) */
+
+.issues h3 + .hint { margin-top: 0; }
+.chat-log {
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px;
+  max-height: 260px; overflow-y: auto; margin-bottom: 8px;
+  display: flex; flex-direction: column; gap: 7px;
+}
+.chat-msg { font-size: 13px; line-height: 1.6; padding: 7px 10px; border-radius: 8px;
+            max-width: 92%; word-break: break-word; }
+/* 담당자 말은 오른쪽, 도구 답은 왼쪽 — 누가 한 말인지 읽지 않고도 보이게. */
+.chat-msg.me { align-self: flex-end; background: var(--accent); color: #fff; }
+.chat-msg.bot { align-self: flex-start; background: var(--bg); border: 1px solid var(--line); }
+.chat-changed { font-size: 11px; color: var(--muted); margin-top: 4px;
+                border-top: 1px solid var(--line); padding-top: 4px; }
+.chat-input { display: flex; gap: 6px; align-items: flex-end; }
+.chat-input textarea { flex: 1; resize: vertical; line-height: 1.5; }
+
+/* 대화로 바뀐 항목을 잠깐 표시한다 — 어디가 달라졌는지 글만 봐서는 찾기 어렵다. */
+.section.changed { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.15); }
+
 /* ───────────────────────────────────────────────────────── 프로필 폼 */
 
 .form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 18px;
@@ -204,6 +225,19 @@ ul.files .none { color: var(--muted); font-size: 13px; }
 .form textarea { min-height: 70px; resize: vertical; }
 .form .check { flex-direction: row; align-items: center; gap: 7px; }
 .form .check label { font-size: 13px; color: var(--text); }
+
+/* 이름·내용 쌍 (주생산품·설비 등 회사마다 다른 항목).
+   이름 칸을 좁게 둔다 — 이름은 낱말이고 내용이 길다. */
+.pairs { display: flex; flex-direction: column; gap: 6px; }
+.pair { display: grid; grid-template-columns: 180px 1fr auto; gap: 8px; }
+.pair-del { padding: 0 10px; line-height: 1; color: var(--muted); }
+.pair-del:hover { color: #b3261e; border-color: #e5a8a2; }
+button.ghost { background: transparent; color: var(--muted); font-size: 12px;
+               align-self: flex-start; margin-top: 6px; }
+
+@media (max-width: 900px) {
+  .pair { grid-template-columns: 1fr 1fr auto; }
+}
 
 @media (max-width: 900px) {
   .split, .two-col { grid-template-columns: 1fr; }

@@ -443,6 +443,10 @@ async function openDraft(refresh, sections) {
   $("draft-empty").hidden = true;
   $("draft-body").hidden = false;
   $("section-editor").hidden = true;
+  // 다른 공고의 초안을 열면 앞선 대화는 남겨 두면 안 된다 — "더 짧게" 같은 말이
+  // 엉뚱한 공고의 맥락으로 이어진다.
+  chatHistory = [];
+  $("chat-log").innerHTML = `<p class="empty small">무엇을 고칠지 적어 보세요.</p>`;
   // 항목을 하나씩 따로 생성하므로(분량 확보) 항목 수만큼 시간이 걸린다.
   $("d-sections").innerHTML =
     `<p class="empty">초안을 만들고 있습니다…<br>항목마다 따로 써 내려가느라
@@ -532,6 +536,86 @@ $("btn-copy").addEventListener("click", async () => {
   setTimeout(() => ($("d-copied").textContent = ""), 4000);
 });
 
+/* 말로 고치기 (대화 Agent).
+ *
+ * 보내는 것은 **저장된 초안이 아니라 화면에 보이는 글**이다(collectDraft). 담당자가
+ * 방금 손으로 고쳐 넣은 문장을 서버가 모른 채 덮어쓰면 안 된다.
+ *
+ * 앞선 대화를 함께 보내 "더 짧게", "그거 말고" 같은 이어지는 말이 통하게 한다.
+ */
+let chatHistory = [];
+
+function pushChat(role, text, changed) {
+  const log = $("chat-log");
+  if (log.querySelector(".empty")) log.innerHTML = "";
+  const row = document.createElement("div");
+  row.className = "chat-msg " + role;
+  row.innerHTML = escapeHtml(text).replace(/\n/g, "<br>") +
+    (changed && changed.length
+      ? `<div class="chat-changed">고친 항목: ${changed.map(escapeHtml).join(", ")}</div>`
+      : "");
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
+  return row;
+}
+
+async function sendChat() {
+  const input = $("chat-text");
+  const message = input.value.trim();
+  if (!message || !currentDraft) return;
+  input.value = "";
+  pushChat("me", message);
+  const waiting = pushChat("bot", "고치는 중입니다…");
+  $("btn-chat-send").disabled = true;
+  try {
+    const result = await post(noticeUrl(current.id, "chat"), {
+      message,
+      sections: collectDraft().sections,
+      history: chatHistory.slice(-6),
+    });
+    waiting.remove();
+    pushChat("bot", result.reply, result.changed);
+    chatHistory.push({ role: "담당자", text: message });
+    chatHistory.push({ role: "도우미", text: result.reply });
+    if (result.changed && result.changed.length) {
+      // 고쳐진 본문으로 화면을 다시 그리고, 바뀐 항목을 잠깐 표시해 준다.
+      renderDraft({ ...currentDraft, sections: result.sections,
+                    unresolved: result.unresolved || [] });
+      highlightChanged(result.changed);
+    }
+  } catch (e) {
+    waiting.remove();
+    pushChat("bot", "고치지 못했습니다 — " + e.message);
+  } finally {
+    $("btn-chat-send").disabled = false;
+    input.focus();
+  }
+}
+
+// 어느 항목이 바뀌었는지 눈으로 알 수 있게 잠깐 테두리를 준다. 항목이 여럿이면
+// 화면 어디가 달라졌는지 글만 봐서는 찾기 어렵다.
+function highlightChanged(titles) {
+  const boxes = [...$("d-sections").querySelectorAll(".section")];
+  let first = null;
+  boxes.forEach((box) => {
+    const title = box.querySelector("h4").textContent;
+    if (!titles.includes(title)) return;
+    box.classList.add("changed");
+    if (!first) first = box;
+    setTimeout(() => box.classList.remove("changed"), 4000);
+  });
+  if (first) first.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+$("btn-chat-send").addEventListener("click", sendChat);
+$("chat-text").addEventListener("keydown", (e) => {
+  // Enter 로 보내고 Shift+Enter 로 줄바꿈 — 채팅에서 익숙한 방식.
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
+});
+
 // ─────────────────────────────────────────────────────── 회사 프로필
 
 // [키, 라벨, 종류]. 자격 판정이 실제로 쓰는 항목만 노출한다.
@@ -553,6 +637,9 @@ const PROFILE_FIELDS = [
   ["smart_factory", "스마트공장을 이미 구축했다", "bool"],
   ["tech_services", "보유 기술 및 서비스 (구체적일수록 초안이 구체적으로 나옵니다)", "area"],
   ["strengths", "회사 강점·현안 (초안에 쓰입니다)", "area"],
+  ["prior_support", "최근 3년 지원사업 수혜 이력 (쉼표로 구분 — 중복 수혜 판정에 쓰입니다)", "list"],
+  // 주생산품·설비처럼 회사마다 다른 항목. 미리 칸을 정해 둘 수 없어 이름부터 직접 적는다.
+  ["extra", "그 밖의 회사 정보 (주생산품·설비 등 — 초안에 그대로 쓰입니다)", "pairs"],
 ];
 
 function renderProfile(p) {
@@ -571,9 +658,52 @@ function renderProfile(p) {
       return `<div class="field wide"><label for="p-${key}">${label}</label>
         <input type="text" id="p-${key}" value="${escapeHtml((value || []).join(", "))}"></div>`;
     }
+    if (kind === "pairs") {
+      return `<div class="field wide"><label>${label}</label>
+        <div id="p-${key}" class="pairs"></div>
+        <button type="button" class="ghost" id="p-${key}-add">+ 항목 추가</button></div>`;
+    }
     return `<div class="field"><label for="p-${key}">${label}</label>
       <input type="${kind}" id="p-${key}" value="${escapeHtml(value ?? "")}"></div>`;
   }).join("");
+
+  // 이름·내용 쌍은 innerHTML 을 다시 쓰면 입력 중인 값이 날아가므로 DOM 으로 붙인다.
+  PROFILE_FIELDS.forEach(([key, , kind]) => {
+    if (kind !== "pairs") return;
+    const box = $("p-" + key);
+    const entries = Object.entries(p[key] || {});
+    if (!entries.length) entries.push(["", ""]);
+    entries.forEach(([k, v]) => box.appendChild(pairRow(k, v)));
+    $("p-" + key + "-add").addEventListener("click", () => {
+      box.appendChild(pairRow("", ""));
+      box.lastChild.querySelector("input").focus();
+    });
+  });
+}
+
+/* '이름 / 내용' 한 줄. 회사마다 적을 항목이 달라(주생산품·설비·보유 라인…)
+ * 칸을 미리 정해 둘 수 없어, 이름부터 담당자가 적게 한다. */
+function pairRow(name, value) {
+  const row = document.createElement("div");
+  row.className = "pair";
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.className = "pair-key";
+  nameInput.placeholder = "항목 이름 (예: 주생산품)";
+  nameInput.value = name;
+  const valueInput = document.createElement("input");
+  valueInput.type = "text";
+  valueInput.className = "pair-value";
+  valueInput.placeholder = "내용";
+  valueInput.value = value;
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "ghost pair-del";
+  del.textContent = "×";
+  del.title = "이 항목 지우기";
+  del.addEventListener("click", () => row.remove());
+  row.append(nameInput, valueInput, del);
+  return row;
 }
 
 async function loadProfile() {
@@ -593,7 +723,15 @@ $("btn-save-profile").addEventListener("click", async () => {
     else if (kind === "number") payload[key] = Number(el.value || 0);
     else if (kind === "list")
       payload[key] = el.value.split(",").map((s) => s.trim()).filter(Boolean);
-    else payload[key] = el.value;
+    else if (kind === "pairs") {
+      const out = {};
+      el.querySelectorAll(".pair").forEach((row) => {
+        const name = row.querySelector(".pair-key").value.trim();
+        // 이름이 없으면 버린다 — 빈 줄로 남겨 둔 행이다.
+        if (name) out[name] = row.querySelector(".pair-value").value.trim();
+      });
+      payload[key] = out;
+    } else payload[key] = el.value;
   });
   try {
     renderProfile(await post("/api/profile", payload));

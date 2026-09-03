@@ -17,7 +17,7 @@ import os
 import re
 import unicodedata
 
-from tools import formdoc
+from tools import formdoc, past_search
 
 _PAST_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)),
                          "data", "past_applications")
@@ -103,8 +103,19 @@ def save(filename: str, data: bytes) -> dict:
     else:
         note += (" 문항 제목을 찾지 못해 한 덩어리로 저장했습니다 — "
                  "파일에서 '## 문항제목' 으로 나누면 초안이 더 정확해집니다.")
-    return {"ok": True, "name": name, "chars": len(text),
-            "sections": sections, "note": note}
+
+    # 올린 게 '작성이 끝난 신청서'가 아니라 '빈 서식'이면 초안에 아무 도움이 안 된다.
+    # 조용히 넘기면 담당자는 파일을 올렸는데 초안이 그대로인 이유를 알 수 없다.
+    usable, total = past_search.usable_ratio(name)
+    if total and usable == 0:
+        note += (" ※ 내용이 없는 **빈 서식**으로 보입니다(작성요령·목차·서식 안내만 "
+                 "있음). 초안 재료로는 쓰이지 않습니다 — 실제로 작성해 제출했던 "
+                 "사업계획서를 올려 주세요.")
+    elif total and usable < total / 2:
+        note += (f" ※ 문항 {total}개 중 {usable}개만 재료로 쓸 수 있습니다 "
+                 f"(나머지는 작성요령·빈칸으로 보입니다).")
+    return {"ok": True, "name": name, "chars": len(text), "sections": sections,
+            "usable": usable, "total": total, "note": note}
 
 
 def listing() -> list[dict]:
@@ -120,9 +131,11 @@ def listing() -> list[dict]:
         path = os.path.join(_PAST_DIR, name)
         with open(path, encoding="utf-8") as f:
             body = f.read()
+        usable, total = past_search.usable_ratio(name)
         out.append({"name": name,
                     "chars": len(body),
-                    "sections": body.count("\n## ")})
+                    "sections": body.count("\n## "),
+                    "usable": usable, "total": total})
     return out
 
 
