@@ -7,3 +7,5 @@ data/app.db
 __pycache__/
 *.pyc
 data/forms/
+clova_tuned_task.txt
+data/training_draft.csv

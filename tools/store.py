@@ -69,6 +69,12 @@ CREATE TABLE IF NOT EXISTS form_specs (
     created_at  TEXT
 );
 
+CREATE TABLE IF NOT EXISTS doc_checks (
+    notice_id   TEXT PRIMARY KEY,
+    checks_json TEXT NOT NULL,          -- {"서류명": true/false} — 담당자가 체크한 상태
+    updated_at  TEXT
+);
+
 CREATE TABLE IF NOT EXISTS drafts (
     notice_id    TEXT PRIMARY KEY,
     draft_json   TEXT NOT NULL,
@@ -286,6 +292,27 @@ def get_form_spec(conn: sqlite3.Connection, notice_id: str) -> dict | None:
     row = conn.execute("SELECT spec_json FROM form_specs WHERE notice_id = ?",
                        (notice_id,)).fetchone()
     return json.loads(row["spec_json"]) if row else None
+
+
+# ------------------------------------------------------------- doc_checks
+
+def get_doc_checks(conn: sqlite3.Connection, notice_id: str) -> dict:
+    """담당자가 체크해 둔 제출서류 상태 {서류명: True/False}.
+
+    서류를 실제로 뗐는지는 사람만 아는 정보라, 화면을 닫아도 남아야 한다.
+    """
+    row = conn.execute("SELECT checks_json FROM doc_checks WHERE notice_id = ?",
+                       (notice_id,)).fetchone()
+    return json.loads(row["checks_json"]) if row else {}
+
+
+def save_doc_checks(conn: sqlite3.Connection, notice_id: str, checks: dict) -> None:
+    conn.execute(
+        "INSERT INTO doc_checks (notice_id, checks_json, updated_at) VALUES (?,?,?) "
+        "ON CONFLICT(notice_id) DO UPDATE SET checks_json=excluded.checks_json, "
+        "updated_at=excluded.updated_at",
+        (notice_id, json.dumps(checks, ensure_ascii=False), date.today().isoformat()))
+    conn.commit()
 
 
 # ----------------------------------------------------------------- drafts

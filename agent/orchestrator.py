@@ -92,7 +92,7 @@ def form_spec_of(conn: sqlite3.Connection, notice: Notice,
 
 def draft_of(conn: sqlite3.Connection, notice: Notice,
              profile: CompanyProfile | None = None,
-             refresh: bool = False) -> Draft:
+             refresh: bool = False, sections: list[str] | None = None) -> Draft:
     """신청서 초안. 이미 만들어 둔 게 있으면 그대로 돌려준다.
 
     초안은 담당자가 손대는 물건이라, 화면을 다시 열었다고 멋대로 새로 만들면
@@ -103,7 +103,8 @@ def draft_of(conn: sqlite3.Connection, notice: Notice,
     항목을 맞춰야 하므로, 어느 쪽이었는지 note 로 알려 준다.
     """
     profile = profile or profile_store.load()
-    if not refresh:
+    # 담당자가 항목을 직접 지정하면 캐시를 건너뛰고 그 항목으로 새로 쓴다.
+    if not refresh and not sections:
         saved = store.get_draft(conn, notice.id)
         if saved:
             d = saved["draft"]
@@ -114,16 +115,20 @@ def draft_of(conn: sqlite3.Connection, notice: Notice,
                          form_fields=d.get("form_fields", []))
 
     spec = form_spec_of(conn, notice)
-    sections = spec.get("write_sections") or None
-    draft = drafter.generate(notice, profile, sections)
+    chosen = sections or spec.get("write_sections") or None
+    draft = drafter.generate(notice, profile, chosen)
     draft.form_file = spec.get("source_file", "")
     draft.form_fields = spec.get("fill_fields", [])
 
-    if sections and draft.form_file:
+    if sections:
+        hint = "담당자가 지정한 항목으로 다시 작성했습니다."
+    elif chosen and draft.form_file:
         hint = f"항목을 첨부 서식 '{draft.form_file}' 에 맞췄습니다."
     else:
         why = spec.get("note", "").strip()
-        hint = "서식 항목을 읽지 못해 기본 구성으로 만들었습니다."
+        hint = ("서식 항목을 읽지 못해 기본 구성으로 만들었습니다. "
+                "실제 양식을 확인하셨다면 '작성 항목 고치기'로 항목을 바꿔 다시 쓸 수 "
+                "있습니다.")
         if why:
             hint += f" ({why})"
     draft.note = f"{draft.note} {hint}".strip()
@@ -132,19 +137,36 @@ def draft_of(conn: sqlite3.Connection, notice: Notice,
     return draft
 
 
-def check_of(conn: sqlite3.Connection, notice: Notice, draft: Draft,
-             profile: CompanyProfile | None = None) -> list[CheckIssue]:
-    """제출 전 점검. 판정 리포트(제출서류 목록)가 필요해 함께 불러온다."""
+def required_docs_of(conn: sqlite3.Connection, notice: Notice,
+                     profile: CompanyProfile | None = None) -> list[str]:
+    """이 공고가 요구하는 제출서류 목록.
+
+    오픈API 응답에는 사실상 없다(기업마당 reqstMthPapersCn는 접수처 안내문이다).
+    진짜 목록은 첨부(공고문·서식) 안에 있으므로 여기서 합친다.
+    """
+    report = eligibility_of(conn, notice, profile)
+    docs = list(report.required_docs)
+    for doc in form_spec_of(conn, notice).get("documents", []):
+        if doc not in docs:
+            docs.append(doc)
+    return docs
+
+
+def checklist_of(conn: sqlite3.Connection, notice: Notice,
+                 profile: CompanyProfile | None = None) -> dict:
+    """제출서류 체크리스트. 담당자가 체크해 둔 상태를 얹어 돌려준다."""
     profile = profile or profile_store.load()
     report = eligibility_of(conn, notice, profile)
+    report.required_docs = required_docs_of(conn, notice, profile)
+    return checker.document_checklist(report, profile, notice,
+                                      store.get_doc_checks(conn, notice.id))
 
-    # 오픈API 응답에는 제출서류 목록이 없다시피 하다(기업마당 reqstMthPapersCn는
-    # 사실상 접수처 안내문이다). 진짜 목록은 첨부 서식 안에 있으므로 여기서 합친다.
-    for doc in form_spec_of(conn, notice).get("documents", []):
-        if doc not in report.required_docs:
-            report.required_docs.append(doc)
 
-    issues = checker.run(notice, draft, report, profile)
+def check_of(conn: sqlite3.Connection, notice: Notice, draft: Draft,
+             profile: CompanyProfile | None = None) -> list[CheckIssue]:
+    """작성한 글 점검 — 수치 불일치·표기 오류. 서류는 checklist_of 가 맡는다."""
+    profile = profile or profile_store.load()
+    issues = checker.run(draft, profile)
     store.save_draft(conn, notice.id, draft.to_dict(),
                      [i.__dict__ for i in issues])
     return issues
@@ -159,6 +181,9 @@ def notice_view(conn: sqlite3.Connection, notice: Notice,
     """
     cluster = store.cluster_of(conn, notice.id)
     sources = [notice.source]
+    # 기관별 원문 링크. 통합된 공고는 양쪽 다 실어 보낸다 — 담당자가 "이 판정이 어느
+    # 공고를 보고 나온 건가"를 원문에서 직접 확인할 수 있어야 도구를 믿는다.
+    source_links = [{"source": notice.source, "url": notice.url}] if notice.url else []
     reason = ""
     attachments = list(notice.attachments)
     if cluster:
@@ -175,11 +200,16 @@ def notice_view(conn: sqlite3.Connection, notice: Notice,
                     have = {a["url"] for a in attachments}
                     attachments += [a for a in sibling.attachments
                                     if a["url"] not in have]
+                    if sibling.url and not any(l["url"] == sibling.url
+                                               for l in source_links):
+                        source_links.append({"source": sibling.source,
+                                             "url": sibling.url})
 
     data = notice.to_dict()
     data.pop("raw", None)               # 원본 JSON은 화면에 필요 없다 (응답만 무거워짐)
     data["attachments"] = attachments
     data["sources"] = sources
+    data["source_links"] = source_links
     data["merged"] = len(sources) > 1
     data["merge_reason"] = reason
     data["verdict"] = (verdicts or {}).get(notice.id)

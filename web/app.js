@@ -88,6 +88,7 @@ async function loadStatus() {
 function noticeCard(item) {
   const card = document.createElement("div");
   card.className = "card";
+  card.dataset.id = item.id;      // 일괄 판정이 이 카드의 뱃지만 콕 집어 갱신한다
 
   const dday = item.d_day === null ? "상시"
     : item.d_day < 0 ? "마감" : `D-${item.d_day}`;
@@ -110,19 +111,35 @@ function noticeCard(item) {
   return card;
 }
 
-async function loadNotices() {
-  const params = new URLSearchParams();
+// 현재 화면의 필터. 목록 조회와 '전체 판정'이 **같은 대상**을 보도록 한곳에서 만든다.
+function currentFilter() {
+  const f = {};
   const region = $("f-region").value.trim();
-  if (region) params.set("region", region);
-  if ($("f-within").value) params.set("within", $("f-within").value);
-  if ($("f-verdict").value) params.set("verdict", $("f-verdict").value);
+  if (region) f.region = region;
+  if ($("f-within").value) f.within = $("f-within").value;
+  if ($("f-verdict").value) f.verdict = $("f-verdict").value;
+  return f;
+}
 
+function renderTally(data) {
+  const t = data.tally || {};
+  const left = data.total - data.judged;
+  $("inbox-count").textContent = `사업 ${data.total}건`;
+  $("inbox-tally").innerHTML =
+    `<span class="badge 가능">가능 ${t["가능"] || 0}</span>` +
+    `<span class="badge 확인필요">확인필요 ${t["확인필요"] || 0}</span>` +
+    `<span class="badge 불가">불가 ${t["불가"] || 0}</span>` +
+    (left > 0 ? `<span class="badge 미판정">미판정 ${left}</span>` : "");
+  $("btn-judge-all").disabled = left === 0;
+}
+
+async function loadNotices() {
+  const params = new URLSearchParams(currentFilter());
   const list = $("notice-list");
   list.innerHTML = "";
   try {
     const data = await api("/api/notices?" + params.toString());
-    $("inbox-count").textContent =
-      `사업 ${data.total}건 (판정 완료 ${data.judged}건)`;
+    renderTally(data);
     if (!data.items.length) {
       list.innerHTML = `<p class="empty">조건에 맞는 공고가 없습니다.
         ‘공고 새로 수집’을 눌러보세요.</p>`;
@@ -133,6 +150,50 @@ async function loadNotices() {
     list.innerHTML = `<p class="empty">${escapeHtml(e.message)}</p>`;
   }
 }
+
+/* 목록 전체 판정.
+ *
+ * 공고 하나마다 LLM을 부르므로 수백 건이면 수십 분이 걸린다. 한 번에 다 돌리면
+ * 화면이 멈춘 것처럼 보이므로, 서버에 조금씩 나눠 요청하고 결과를 받는 대로 카드에
+ * 반영한다. 그래서 담당자는 다 끝나기 전에도 '가능'부터 눈으로 집을 수 있고,
+ * 중간에 멈출 수도 있다.
+ */
+let judging = false;
+
+async function judgeAll() {
+  if (judging) return;
+  judging = true;
+  $("btn-judge-all").hidden = true;
+  $("btn-judge-stop").hidden = false;
+
+  try {
+    while (judging) {
+      const result = await post("/api/judge", { ...currentFilter(), limit: 4 });
+      // 받은 판정을 카드에 바로 칠한다 (전체를 다시 불러오지 않는다).
+      result.judged.forEach((j) => {
+        const el = document.querySelector(`.card[data-id="${CSS.escape(j.id)}"] .badge`);
+        if (el) {
+          el.textContent = j.verdict;
+          el.className = "badge " + j.verdict;
+        }
+      });
+      $("ingest-log").textContent =
+        `판정 중… ${result.done}/${result.total}건 (남은 ${result.remaining}건)`;
+      if (!result.remaining || !result.judged.length) break;
+    }
+    $("ingest-log").textContent = judging ? "판정을 마쳤습니다." : "판정을 멈췄습니다.";
+  } catch (e) {
+    $("ingest-log").textContent = "판정 실패 — " + e.message;
+  } finally {
+    judging = false;
+    $("btn-judge-all").hidden = false;
+    $("btn-judge-stop").hidden = true;
+    await loadNotices();          // 집계와 뱃지를 최종 상태로 맞춘다
+  }
+}
+
+$("btn-judge-all").addEventListener("click", judgeAll);
+$("btn-judge-stop").addEventListener("click", () => { judging = false; });
 
 $("btn-ingest").addEventListener("click", async () => {
   const btn = $("btn-ingest");
@@ -168,16 +229,49 @@ async function openNotice(item) {
   $("verdict-empty").hidden = true;
   $("verdict-body").hidden = false;
   $("v-title").textContent = item.title;
+  // 출처를 분명히 밝힌다. 어느 기관 오픈API에서 받은 자료인지, 원문은 어디인지를
+  // 기관별로 따로 건다 — 통합된 공고는 양쪽 원문이 다 있어야 대조가 된다.
+  const links = (item.source_links || []).length
+    ? (item.source_links || []).map((l) =>
+        `<a href="${escapeHtml(l.url)}" target="_blank" rel="noreferrer">
+           ${escapeHtml(l.source)} 원문 공고 ↗</a>`).join(" · ")
+    : `<span class="none">원문 링크가 제공되지 않은 공고입니다.</span>`;
+
   $("v-meta").innerHTML =
-    `${escapeHtml(item.agency || "소관기관 미상")} · 출처 ${escapeHtml(item.sources.join(" · "))}` +
-    (item.merge_reason ? ` · 통합 근거: ${escapeHtml(item.merge_reason)}` : "") +
-    (item.url ? ` · <a href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">원문 공고</a>` : "");
+    `소관기관 ${escapeHtml(item.agency || "미상")}` +
+    ` · 자료 출처 <strong>${escapeHtml(item.sources.join(" + "))} 오픈API</strong>` +
+    (item.merge_reason
+      ? ` · 통합 근거: ${escapeHtml(item.merge_reason)}` : "") +
+    `<br>${links}`;
 
   $("v-rows").innerHTML = `<tr><td colspan="4">판정 중입니다…</td></tr>`;
   $("v-overall").textContent = "";
   $("v-note").textContent = "";
+  renderOverview(item);
   renderFiles($("v-files"), item.attachments, false);
   await loadEligibility(false);
+}
+
+/* 판정 위에 공고 자체를 요약해 보여준다.
+ *
+ * '가능/불가'만 봐서는 이 사업이 뭘 해 주는 건지 알 수 없어, 담당자가 결국 원문 공고를
+ * 다시 열게 된다. 개요·지원내용·지원대상을 함께 두면 이 화면에서 판단이 끝난다.
+ */
+function renderOverview(item) {
+  const rows = [
+    ["지원분야", item.support_field],
+    ["소관기관", item.agency],
+    ["지원지역", item.region_text],
+    ["사업 개요", item.summary],
+    ["지원대상", item.target_text],
+    ["신청 제외대상", item.exclude_text],
+    ["신청방법", item.docs_text],
+  ].filter(([, v]) => v && String(v).trim());
+
+  $("v-overview").innerHTML = rows.length
+    ? rows.map(([k, v]) =>
+        `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join("")
+    : `<dd class="none">공고문에 요약 정보가 없습니다. 원문 공고를 확인하세요.</dd>`;
 }
 
 async function loadEligibility(refresh) {
@@ -200,9 +294,7 @@ async function loadEligibility(refresh) {
           </tr>`).join("")
       : `<tr><td colspan="4">공고문에서 자격요건을 찾지 못했습니다. 원문을 직접 확인하세요.</td></tr>`;
 
-    $("v-docs").innerHTML = report.required_docs.length
-      ? report.required_docs.map((d) => `<li>${escapeHtml(d)}</li>`).join("")
-      : `<li>공고문에서 제출서류를 찾지 못했습니다.</li>`;
+    loadChecklist(report.docs_source);
 
     const s = report.schedule;
     $("v-sched").innerHTML = [
@@ -213,6 +305,61 @@ async function loadEligibility(refresh) {
   } catch (e) {
     $("v-rows").innerHTML =
       `<tr><td colspan="4">판정 실패 — ${escapeHtml(e.message)}</td></tr>`;
+  }
+}
+
+/* 제출서류 체크리스트.
+ *
+ * 경고 목록이 아니라 체크리스트인 이유: 서류를 실제로 뗐는지는 사람만 압니다.
+ * 도구가 "없습니다"라고 단정하면 이미 준비한 서류에도 빨간 경고가 뜨고, 그런 게
+ * 몇 개 쌓이면 담당자가 경고 전체를 무시하게 됩니다. 아는 것(프로필의 보유 서류)만
+ * 미리 체크해 두고 나머지는 담당자가 직접 켭니다. 체크 상태는 서버에 남습니다.
+ */
+function renderChecklist(data, docsSource) {
+  $("v-docs-progress").textContent =
+    data.total ? `${data.done}/${data.total} 준비됨` : "";
+  $("v-docs-note").textContent = data.note || "";
+
+  $("v-checklist").innerHTML = data.items.length
+    ? data.items.map((it) => `
+        <label class="doc ${it.checked ? "done" : ""}">
+          <input type="checkbox" data-doc="${escapeHtml(it.name)}"
+                 ${it.checked ? "checked" : ""}>
+          <span class="kind ${escapeHtml(it.kind)}">${escapeHtml(it.kind)}</span>
+          <span class="dname">${escapeHtml(it.name)}</span>
+          <span class="dhint">${escapeHtml(it.hint)}</span>
+        </label>`).join("") +
+      (docsSource
+        ? `<p class="src-note">서류 목록 출처: ${escapeHtml(docsSource)}</p>` : "")
+    : `<p class="empty small">제출서류를 찾지 못했습니다.</p>`;
+
+  $("v-checklist").querySelectorAll("input[type=checkbox]")
+    .forEach((box) => box.addEventListener("change", saveChecklist));
+}
+
+async function loadChecklist(docsSource) {
+  $("v-checklist").innerHTML = `<p class="empty small">서류 목록을 확인하는 중…</p>`;
+  try {
+    renderChecklist(await api(noticeUrl(current.id, "checklist")), docsSource);
+  } catch (e) {
+    $("v-checklist").innerHTML =
+      `<p class="empty small">${escapeHtml(e.message)}</p>`;
+  }
+}
+
+async function saveChecklist() {
+  const checks = {};
+  $("v-checklist").querySelectorAll("input[type=checkbox]")
+    .forEach((box) => { checks[box.dataset.doc] = box.checked; });
+  try {
+    const data = await post(noticeUrl(current.id, "checklist"), { checks });
+    $("v-docs-progress").textContent = `${data.done}/${data.total} 준비됨`;
+    $("v-checklist").querySelectorAll(".doc").forEach((el) => {
+      const box = el.querySelector("input");
+      el.classList.toggle("done", box.checked);
+    });
+  } catch (e) {
+    $("v-docs-note").textContent = "체크 상태를 저장하지 못했습니다 — " + e.message;
   }
 }
 
@@ -258,14 +405,18 @@ function collectDraft() {
   return { ...currentDraft, sections };
 }
 
-async function openDraft(refresh) {
+async function openDraft(refresh, sections) {
   showTab("draft");
   $("draft-empty").hidden = true;
   $("draft-body").hidden = false;
-  $("d-sections").innerHTML = `<p class="empty">초안을 만들고 있습니다… (10~20초)</p>`;
+  $("section-editor").hidden = true;
+  // 항목을 하나씩 따로 생성하므로(분량 확보) 항목 수만큼 시간이 걸린다.
+  $("d-sections").innerHTML =
+    `<p class="empty">초안을 만들고 있습니다…<br>항목마다 따로 써 내려가느라
+     30초~1분 걸립니다. 잠시만 기다려 주세요.</p>`;
   $("d-issues").innerHTML = `<p class="empty small">‘제출 전 점검’을 누르세요.</p>`;
   try {
-    if (!refresh) {
+    if (!refresh && !sections) {
       const saved = await api(noticeUrl(current.id, "draft"));
       if (saved.draft) {
         renderDraft(saved.draft);
@@ -273,11 +424,41 @@ async function openDraft(refresh) {
         return;
       }
     }
-    renderDraft(await post(noticeUrl(current.id, "draft"), { refresh }));
+    renderDraft(await post(noticeUrl(current.id, "draft"), { refresh, sections }));
   } catch (e) {
     $("d-sections").innerHTML = `<p class="empty">초안 생성 실패 — ${escapeHtml(e.message)}</p>`;
   }
 }
+
+/* 작성 항목 직접 고치기.
+ *
+ * 첨부가 없거나 PDF 서식이라 항목을 못 읽으면 기본 구성으로 씁니다. 그때 담당자가
+ * 실제 양식을 찾아 확인했다면, 그 항목을 여기에 적어 다시 쓰게 하는 게 맞습니다 —
+ * 도구가 못 읽었다고 담당자까지 기본 구성에 갇힐 이유가 없습니다.
+ */
+$("btn-edit-sections").addEventListener("click", () => {
+  const editor = $("section-editor");
+  if (!editor.hidden) { editor.hidden = true; return; }
+  $("section-list").value =
+    (currentDraft ? currentDraft.sections.map((s) => s.title) : []).join("\n");
+  editor.hidden = false;
+  $("section-list").focus();
+});
+
+$("btn-cancel-sections").addEventListener("click", () => {
+  $("section-editor").hidden = true;
+});
+
+$("btn-apply-sections").addEventListener("click", async () => {
+  const titles = $("section-list").value.split("\n")
+    .map((t) => t.replace(/^\s*[-*■□]?\s*\d*[.)]?\s*/, "").trim())
+    .filter(Boolean);
+  if (!titles.length) {
+    $("d-copied").textContent = "항목을 한 줄에 하나씩 적어 주세요.";
+    return;
+  }
+  await openDraft(true, titles);
+});
 
 function renderIssues(issues) {
   if (!issues.length) {

@@ -21,6 +21,7 @@ import struct
 import urllib.request
 import zipfile
 import zlib
+from xml.etree import ElementTree
 
 _CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "forms")
 
@@ -140,8 +141,10 @@ class _CFB:
         return None
 
 
-# 본문 레코드에서 문단 글자를 담고 있는 태그.
-_HWPTAG_PARA_TEXT = 67
+# 본문 레코드 태그 (HWPTAG_BEGIN=16 기준).
+_HWPTAG_PARA_TEXT = 67       # 문단 글자
+_HWPTAG_LIST_HEADER = 72     # 문단 목록의 머리 — 표 안에서는 '셀 하나'의 시작
+_HWPTAG_TABLE = 77           # 표 시작
 
 # 제어문자 중 **뒤에 파라미터가 붙어 총 8워드(16바이트)를 차지하는** 것들.
 #
@@ -168,11 +171,36 @@ def _hwp_text(data: bytes) -> str:
         except zlib.error:
             continue
 
+        # 표를 만나면 여기에 쌓아 두었다가, 표가 끝날 때 행 단위로 펼친다.
+        # (표 안에 표가 들어가는 문서가 있어 스택으로 둔다)
+        tables: list[dict] = []
+
+        def emit(text: str) -> None:
+            """글자를 지금 있어야 할 곳에 넣는다 — 표 안이면 셀에, 아니면 본문 줄에."""
+            if tables and tables[-1]["cell"] is not None:
+                tables[-1]["rows"].setdefault(tables[-1]["cell"][0], {}) \
+                    .setdefault(tables[-1]["cell"][1], []).append(text)
+            else:
+                lines.append(text)
+
+        def close_table() -> None:
+            """표 하나를 행 단위 줄로 펼친다."""
+            table = tables.pop()
+            for row_no in sorted(table["rows"]):
+                cells = table["rows"][row_no]
+                joined = CELL_SEP.join(" ".join(cells[c]).strip()
+                                       for c in sorted(cells))
+                joined = joined.strip(" |")
+                if joined:
+                    emit(joined)          # 바깥 표의 셀일 수도 있으므로 emit 을 쓴다
+
         pos, end = 0, len(body)
         while pos + 4 <= end:
             hdr = struct.unpack_from("<I", body, pos)[0]
             pos += 4
-            tag, size = hdr & 0x3FF, (hdr >> 20) & 0xFFF
+            tag = hdr & 0x3FF
+            level = (hdr >> 10) & 0x3FF
+            size = (hdr >> 20) & 0xFFF
             if size == 0xFFF:                       # 크기가 넘치면 다음 4바이트가 실제 크기
                 if pos + 4 > end:
                     break
@@ -180,6 +208,30 @@ def _hwp_text(data: bytes) -> str:
                 pos += 4
             chunk = body[pos:pos + size]
             pos += size
+
+            # 표의 바깥으로 나왔으면 그 표를 마감한다.
+            #
+            # 조건이 '<' 인 게 중요하다. 표(TABLE)와 그 셀(LIST_HEADER)은 **같은
+            # level** 에 놓인다(실측: 둘 다 level 2). '<=' 로 두면 첫 셀을 만나자마자
+            # 표가 닫혀서 셀이 하나도 안 묶인다.
+            while tables and level < tables[-1]["level"]:
+                close_table()
+
+            if tag == _HWPTAG_TABLE:
+                # 같은 레벨에 표가 잇달아 나오면 앞의 표를 먼저 닫는다.
+                while tables and level <= tables[-1]["level"]:
+                    close_table()
+                tables.append({"level": level, "rows": {}, "cell": None})
+                continue
+
+            if tag == _HWPTAG_LIST_HEADER and tables and len(chunk) >= 12:
+                # 표 셀의 목록 머리에는 칸 좌표가 들어 있다 (col, row 순서).
+                # 이 좌표가 없으면 셀이 문서 순서대로 한 줄씩 흩어져, 어떤 서류가
+                # 몇 부인지 같은 행 관계를 읽는 쪽이 맞출 수 없다.
+                col, row = struct.unpack_from("<HH", chunk, 8)
+                tables[-1]["cell"] = (row, col)
+                continue
+
             if tag != _HWPTAG_PARA_TEXT:
                 continue
 
@@ -197,32 +249,87 @@ def _hwp_text(data: bytes) -> str:
                     buf.append(chr(c))
             text = "".join(buf).strip()
             if text:
-                lines.append(text)
+                emit(text)
+
+        while tables:                                # 파일이 표 안에서 끝난 경우
+            close_table()
     return "\n".join(lines)
 
 
 # ═══════════════════════════════════════════════ ZIP 계열(.hwpx/.docx/.zip)
 
-# hwpx는 <hp:t>, docx는 <w:t> 안에 글자가 들어 있다.
-_TEXT_TAG_RE = re.compile(r"<(?:hp|w):t(?:\s[^>]*)?>(.*?)</(?:hp|w):t>", re.S)
-_PARA_SPLIT_RE = re.compile(r"</(?:hp:p|w:p)>")
-_TAG_RE = re.compile(r"<[^>]+>")
+# 표의 셀 구분자. 한 행을 한 줄로 만들면서 셀 경계를 남긴다.
+CELL_SEP = " | "
+
+
+def _local(tag: str) -> str:
+    """네임스페이스를 뗀 태그 이름 ('{...}tbl' → 'tbl')."""
+    return tag.rsplit("}", 1)[-1]
+
+
+def _render(elem, out: list[str], buf: list[str]) -> None:
+    """XML 트리를 훑어 줄 목록으로 만든다. **표는 행 단위로 묶는다.**
+
+    이게 이 파일에서 가장 중요한 부분이다. 정규식으로 <hp:t>만 긁으면 표의 셀이
+    한 줄에 하나씩 흩어져 행 관계가 사라진다. 실제 공고문에서 이런 일이 났다:
+
+        평가항목 / 심사내용 / 배점        ← 머리행이 세 줄로 쪼개짐
+        서류심사 / 브랜드 차별성 / 35점   ← 한 행이 세 줄로 쪼개짐
+
+    제출서류가 '구분 | 연번 | 서류명 | 부수' 표에 들어 있으면 서류명과 부수가 따로
+    놀아서, 읽는 쪽이 무엇이 몇 부인지 맞출 수 없다. 그래서 한 행을 한 줄로 잇는다.
+    """
+    tag = _local(elem.tag)
+
+    if tag == "t":                       # 글자 노드
+        if elem.text:
+            buf.append(elem.text)
+        return
+
+    if tag == "tbl":                     # 표 — 행 단위로 접는다
+        _flush(buf, out)
+        for row in (c for c in elem if _local(c.tag) == "tr"):
+            cells: list[str] = []
+            for cell in (c for c in row if _local(c.tag) == "tc"):
+                sub: list[str] = []
+                sub_buf: list[str] = []
+                for child in cell:
+                    _render(child, sub, sub_buf)
+                _flush(sub_buf, sub)
+                cells.append(" ".join(x.strip() for x in sub if x.strip()))
+            line = CELL_SEP.join(cells).strip(" |")
+            if line:
+                out.append(line)
+        return
+
+    if tag == "p":                       # 문단 — 한 줄로 끊는다
+        for child in elem:
+            _render(child, out, buf)
+        _flush(buf, out)
+        return
+
+    for child in elem:
+        _render(child, out, buf)
+
+
+def _flush(buf: list[str], out: list[str]) -> None:
+    text = "".join(buf).strip()
+    buf.clear()
+    if text:
+        out.append(text)
 
 
 def _xml_text(xml: str) -> str:
-    """문단(<hp:p>/<w:p>) 단위로 끊어서 줄을 살린다.
-
-    글자는 <hp:t> 안에만 있고 문단 경계는 그 **바깥**이라, 경계를 줄바꿈 문자로
-    바꿔치기해 봐야 추출에서 그대로 버려진다(그래서 문서 전체가 한 줄로 뭉쳤다).
-    먼저 문단으로 쪼갠 뒤 각 조각에서 글자를 모아야 항목 구분이 남는다.
-    """
-    lines = []
-    for para in _PARA_SPLIT_RE.split(xml):
-        text = "".join(html.unescape(_TAG_RE.sub("", m.group(1)))
-                       for m in _TEXT_TAG_RE.finditer(para))
-        if text.strip():
-            lines.append(text.strip())
-    return "\n".join(lines)
+    """hwpx/docx 본문 XML → 줄 목록. 표는 행 단위로 유지한다."""
+    try:
+        root = ElementTree.fromstring(xml)
+    except ElementTree.ParseError:
+        return ""
+    lines: list[str] = []
+    buf: list[str] = []
+    _render(root, lines, buf)
+    _flush(buf, lines)
+    return "\n".join(html.unescape(l) for l in lines)
 
 
 def _zip_text(data: bytes, depth: int = 0) -> str:
@@ -263,6 +370,9 @@ _SPACED_RE = re.compile(r"(?:(?<=^)|(?<=[\s(\[]))((?:[가-힣] ){2,}[가-힣])(?
 def _tidy(text: str) -> str:
     text = _SPACED_RE.sub(lambda m: m.group(1).replace(" ", ""), text)
     text = re.sub(r"[ \t]+", " ", text)
+    # 병합된 칸은 빈 셀로 나와 "구 분 | | 기 간 | | 주요내용" 처럼 구분자가 겹친다.
+    # 읽는 쪽에 아무 정보도 주지 않으면서 자리만 차지하므로 하나로 접는다.
+    text = re.sub(r"(?:\s*\|\s*){2,}", " | ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
