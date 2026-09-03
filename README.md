@@ -18,14 +18,25 @@
 Python 3.10 이상만 있으면 됩니다. **설치할 패키지가 없습니다**(전부 표준 라이브러리).
 
 ```bash
-python -m tools.ingest          # 실제 공고 수집 + 중복 통합 (인증키 필요)
-python serve.py                 # http://localhost:8000
+python -m tools.refresh --collect  # 수집 + 중복 통합 + 필요한 공고만 사전 판정
+python serve.py                    # http://localhost:8000
 ```
 
 인증키가 아직 없다면 마지막 수집분 캐시로 띄울 수 있습니다:
 
 ```bash
-python -m tools.ingest --offline
+python -m tools.refresh --collect --offline
+```
+
+웹은 SQLite에 저장된 판정 결과만 읽으므로 공고함을 여는 순간에는 LLM을 호출하지
+않습니다. `공고 새로 수집`과 `판정 결과 갱신` 버튼도 같은 작업을 백그라운드에서
+실행하므로, 갱신 중에도 저장된 결과를 계속 볼 수 있습니다.
+
+운영체제 작업 스케줄러나 배포 플랫폼의 예약 작업에는 다음 명령을 등록하면 됩니다.
+이미 유효한 판정은 건너뛰고 신규·변경 공고만 다시 계산합니다.
+
+```bash
+python -m tools.refresh --collect
 ```
 
 > **연습용 더미 데이터는 들어 있지 않습니다.** 화면에 뜨는 공고는 전부 기업마당·

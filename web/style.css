@@ -122,7 +122,7 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
 /* 카드 — 페이지보다 밝은 순백이라야 떠 보인다. */
 .card {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md);
-  padding: 15px 18px; cursor: pointer; display: flex; align-items: center; gap: 16px;
+  padding: 0; display: flex; align-items: center; gap: 0;
   box-shadow: var(--shadow-card);
   transition: border-color .14s, box-shadow .14s, transform .14s;
 }
@@ -295,6 +295,10 @@ main { padding: 24px 28px 60px; max-width: 1240px; }
 .toolbar input[type=search]:focus {
   border-color: var(--border-hover); box-shadow: 0 0 0 3px var(--ring-soft);
 }
+.bookmark-filter[aria-pressed="true"] {
+  background: var(--primary-soft); color: var(--accent-foreground);
+  border-color: var(--border-hover); box-shadow: none;
+}
 .count { color: var(--muted-foreground); font-size: 12px; font-weight: 600; }
 .log { color: var(--muted-foreground); font-size: 12px; margin: 6px 0; min-height: 16px; white-space: pre-line; }
 .empty {
@@ -315,6 +319,26 @@ h3 { font-size: 14px; margin: 24px 0 10px; color: var(--foreground); letter-spac
 .cards { display: grid; gap: 11px; }
 /* 목록을 잇는 버튼. 카드와 같은 폭으로 깔아 목록의 끝이라는 걸 자리로 말한다. */
 .cards > button { width: 100%; padding: 12px; margin-top: 2px; }
+.card .card-open {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 16px;
+  padding: 15px 12px 15px 18px; border: 0; border-radius: inherit;
+  background: transparent; box-shadow: none; text-align: left; color: inherit;
+}
+.card .card-open:hover { background: transparent; color: inherit; }
+.bookmark-button {
+  width: 40px; height: 40px; flex: none; display: grid; place-items: center;
+  padding: 0; margin-right: 12px; border-color: transparent; border-radius: var(--radius-pill);
+  background: transparent; box-shadow: none; color: var(--muted-foreground);
+  font-size: 22px; line-height: 1;
+}
+.bookmark-button:hover {
+  background: var(--primary-soft); border-color: transparent;
+  color: var(--accent-foreground); box-shadow: none;
+}
+.bookmark-button[aria-pressed="true"] {
+  background: var(--primary-soft); color: var(--accent-foreground);
+  border-color: transparent;
+}
 .card .dday {
   min-width: 66px; text-align: center; font-weight: 800; font-size: 15px;
   color: var(--accent-foreground); letter-spacing: -.04em;

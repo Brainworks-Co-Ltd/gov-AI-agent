@@ -10,6 +10,18 @@ const $ = (id) => document.getElementById(id);
 let current = null;
 let currentDraft = null;
 
+// 북마크는 회사 프로필과 무관한 브라우저별 편의 기능이다. 저장소 접근이 막혀도
+// 현재 탭에서는 쓸 수 있도록 저장 모듈 내부의 메모리 상태로 이어 간다.
+let browserStorage = null;
+try {
+  browserStorage = window.localStorage;
+} catch (_) {
+  browserStorage = null;
+}
+const bookmarkStore = NoticeBookmarks.createStore(browserStorage);
+let bookmarksOnly = false;
+let latestNoticeData = null;
+
 // ─────────────────────────────────────────────────────────────── 공통
 
 async function api(path, options) {
@@ -85,10 +97,42 @@ async function loadStatus() {
 
 // ─────────────────────────────────────────────────────────── ① 공고함
 
+function setBookmarkButtonState(bookmark, saved) {
+  bookmark.textContent = saved ? "★" : "☆";
+  bookmark.setAttribute("aria-pressed", String(saved));
+  bookmark.setAttribute("aria-label", saved ? "북마크 해제" : "북마크 추가");
+  bookmark.title = saved ? "북마크 해제" : "북마크 추가";
+}
+
+function updateBookmarkFilterButton() {
+  const button = $("btn-bookmarks");
+  button.textContent = `북마크만 ${bookmarkStore.count()}`;
+  button.setAttribute("aria-pressed", String(bookmarksOnly));
+}
+
+function syncBookmarkButtons(noticeId) {
+  const saved = bookmarkStore.has(noticeId);
+  document.querySelectorAll(".bookmark-button").forEach((bookmark) => {
+    if (bookmark.dataset.noticeId === noticeId) {
+      setBookmarkButtonState(bookmark, saved);
+    }
+  });
+}
+
+function toggleBookmark(noticeId) {
+  bookmarkStore.toggle(noticeId);
+  updateBookmarkFilterButton();
+  if (bookmarksOnly && latestNoticeData) {
+    renderNoticeData(latestNoticeData);
+    return;
+  }
+  syncBookmarkButtons(noticeId);
+}
+
 function noticeCard(item) {
   const card = document.createElement("div");
   card.className = "card";
-  card.dataset.id = item.id;      // 일괄 판정이 이 카드의 뱃지만 콕 집어 갱신한다
+  card.dataset.id = item.id;
 
   const dday = item.d_day === null ? "상시"
     : item.d_day < 0 ? "마감" : `D-${item.d_day}`;
@@ -97,7 +141,11 @@ function noticeCard(item) {
   const merged = item.merged
     ? `<span class="tag">${escapeHtml(item.sources.join(" · "))} 통합</span>` : "";
 
-  card.innerHTML = `
+  // 카드 본문과 북마크를 각각 실제 버튼으로 두어 중첩된 인터랙션을 피한다.
+  const open = document.createElement("button");
+  open.type = "button";
+  open.className = "card-open";
+  open.innerHTML = `
     <div class="dday ${urgent ? "urgent" : ""}">${dday}</div>
     <div class="grow">
       <div class="title">${escapeHtml(item.title)}${merged}</div>
@@ -106,17 +154,21 @@ function noticeCard(item) {
         · 마감 ${escapeHtml(item.apply_end || "미상")}</div>
     </div>
     <span class="badge ${verdict}">${verdict}</span>`;
+  open.addEventListener("click", () => openNotice(item));
 
-  // 공고를 고르는 것이 이 화면의 유일한 동작인데 div 에 click 만 달려 있어서
-  // 키보드로는 아무 공고도 열 수 없었다. 마우스 없이도 목록을 훑을 수 있어야 한다.
-  card.tabIndex = 0;
-  card.setAttribute("role", "button");
-  card.addEventListener("click", () => openNotice(item));
-  card.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter" && e.key !== " ") return;
-    e.preventDefault();          // Space 가 페이지를 스크롤하지 않게
-    openNotice(item);
+  const bookmark = document.createElement("button");
+  bookmark.type = "button";
+  bookmark.className = "bookmark-button";
+  bookmark.dataset.noticeId = item.id;
+  setBookmarkButtonState(bookmark, bookmarkStore.has(item.id));
+  bookmark.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleBookmark(item.id);
   });
+  bookmark.addEventListener("keydown", (e) => e.stopPropagation());
+
+  card.appendChild(open);
+  card.appendChild(bookmark);
   return card;
 }
 
@@ -143,18 +195,17 @@ function renderTally(data) {
     `<span class="badge 확인필요">확인필요 ${t["확인필요"] || 0}</span>` +
     `<span class="badge 불가">불가 ${t["불가"] || 0}</span>` +
     (left > 0 ? `<span class="badge 미판정">미판정 ${left}</span>` : "");
-  $("btn-judge-all").disabled = left === 0;
+}
 
-  // 미판정이 남아 있으면 묻지 않고 앞에서부터 판정을 시작한다.
-  // 한 건에 3.3초라 전건(수백 건)은 수십 분이 걸린다. 그래서 자동으로는 화면 맨
-  // 위 AUTO_JUDGE 건만 채우고, 나머지는 '목록 전체 판정' 버튼에 맡긴다.
-  // 같은 목록에서 두 번 돌지 않도록 필터 조합을 키로 기억한다.
-  const { sort, ...narrowing } = currentFilter();   // 정렬은 대상을 바꾸지 않는다
-  const key = JSON.stringify(narrowing);
-  if (left > 0 && !judging && autoKey !== key) {
-    autoKey = key;
-    judgeAll(AUTO_JUDGE);
-  }
+function summarizeItems(items) {
+  const tally = { "가능": 0, "확인필요": 0, "불가": 0 };
+  let judged = 0;
+  items.forEach((item) => {
+    if (!(item.verdict in tally)) return;
+    tally[item.verdict] += 1;
+    judged += 1;
+  });
+  return { total: items.length, judged, tally };
 }
 
 /* 우리 회사에 맞는 공고를 맨 위로.
@@ -223,88 +274,110 @@ async function loadNotices() {
   try {
     const data = await api("/api/notices?" + params.toString());
     if (seq !== loadSeq) return;          // 더 새 요청이 이미 떠났다
-    list.innerHTML = "";
-    renderTally(data);
-    renderRecommended(data.recommended);
-    if (!data.items.length) {
-      list.innerHTML = `<p class="empty">조건에 맞는 공고가 없습니다.
-        검색어나 필터를 지워 보세요.</p>`;
-      return;
-    }
-    renderCards(list, data.items);
+    renderNoticeData(data);
   } catch (e) {
     if (seq !== loadSeq) return;
     list.innerHTML = `<p class="empty">${escapeHtml(e.message)}</p>`;
   }
 }
 
-/* 목록 전체 판정.
- *
- * 공고 하나마다 LLM을 부르므로 수백 건이면 수십 분이 걸린다. 한 번에 다 돌리면
- * 화면이 멈춘 것처럼 보이므로, 서버에 조금씩 나눠 요청하고 결과를 받는 대로 카드에
- * 반영한다. 그래서 담당자는 다 끝나기 전에도 '가능'부터 눈으로 집을 수 있고,
- * 중간에 멈출 수도 있다.
- */
-let judging = false;
-let autoKey = null;          // 자동 판정을 이미 돌린 필터 조합
-const AUTO_JUDGE = 12;       // 자동으로 채우는 건수 (배치 4 × 3회 ≈ 10초)
+/* 수집·판정은 서버의 백그라운드 작업 하나가 맡는다. 브라우저는 무거운 요청을
+   붙들지 않고 상태만 확인하므로, 탭을 옮기거나 새로고침해도 작업은 계속된다. */
+let refreshTimer = null;
+let observedRefresh = false;
 
-async function judgeAll(max = Infinity) {
-  if (judging) return;
-  judging = true;
-  $("btn-judge-all").hidden = true;
-  $("btn-judge-stop").hidden = false;
+function setRefreshButtons(running) {
+  $("btn-ingest").disabled = running;
+  $("btn-judge-all").disabled = running;
+}
 
-  try {
-    let judged = 0;
-    while (judging && judged < max) {
-      const limit = Math.min(4, max - judged);
-      const result = await post("/api/judge", { ...currentFilter(), limit });
-      judged += result.judged.length;
-      // 받은 판정을 카드에 바로 칠한다 (전체를 다시 불러오지 않는다).
-      result.judged.forEach((j) => {
-        const el = document.querySelector(`.card[data-id="${CSS.escape(j.id)}"] .badge`);
-        if (el) {
-          el.textContent = j.verdict;
-          el.className = "badge " + j.verdict;
-        }
-      });
-      $("ingest-log").textContent =
-        `판정 중… ${result.done}/${result.total}건 (남은 ${result.remaining}건)`;
-      if (!result.remaining || !result.judged.length) break;
+function refreshMessage(status) {
+  if (status.state === "running") {
+    if (status.phase === "collecting") {
+      return "기업마당·K-Startup 공고를 수집하고 중복을 통합하는 중입니다…";
     }
-    const rest = Number($("inbox-tally").dataset.left || 0) - judged;
-    $("ingest-log").textContent = !judging ? "판정을 멈췄습니다."
-      : max === Infinity || rest <= 0 ? "판정을 마쳤습니다."
-      : `앞에서 ${judged}건을 판정했습니다. 남은 ${rest}건은 ‘목록 전체 판정’을 누르세요.`;
+    return `판정 결과 갱신 중… ${status.done || 0}/${status.total || 0}건 ` +
+      `(기존 ${status.cached || 0}건 · 새로 ${status.refreshed || 0}건)`;
+  }
+  if (status.state === "failed") {
+    return "갱신 실패 — " + ((status.errors || [])[0] || "원인을 확인하지 못했습니다.");
+  }
+  if (status.state === "succeeded") {
+    const summary = `갱신 완료 — 새로 ${status.refreshed || 0}건 · ` +
+      `기존 ${status.cached || 0}건` +
+      (status.failed ? ` · 실패 ${status.failed}건` : "");
+    const notes = status.ingest && status.ingest.notes;
+    return notes && notes.length ? notes.join("\n") + "\n" + summary : summary;
+  }
+  return "";
+}
+
+async function pollRefresh() {
+  clearTimeout(refreshTimer);
+  try {
+    const status = await api("/api/refresh");
+    const running = status.state === "running";
+    setRefreshButtons(running);
+    if (running) {
+      observedRefresh = true;
+      $("ingest-log").textContent = refreshMessage(status);
+      refreshTimer = setTimeout(pollRefresh, 1000);
+      return;
+    }
+    if (observedRefresh) {
+      observedRefresh = false;
+      $("ingest-log").textContent = refreshMessage(status);
+      await loadNotices();
+    }
   } catch (e) {
-    $("ingest-log").textContent = "판정 실패 — " + e.message;
-  } finally {
-    judging = false;
-    $("btn-judge-all").hidden = false;
-    $("btn-judge-stop").hidden = true;
-    await loadNotices();          // 집계와 뱃지를 최종 상태로 맞춘다
+    setRefreshButtons(false);
+    $("ingest-log").textContent = "갱신 상태 확인 실패 — " + e.message;
   }
 }
 
-$("btn-judge-all").addEventListener("click", () => judgeAll());
-$("btn-judge-stop").addEventListener("click", () => { judging = false; });
+function renderNoticeData(data) {
+  latestNoticeData = data;
+  const list = $("notice-list");
+  const items = bookmarksOnly ? bookmarkStore.filter(data.items) : data.items;
+  const picks = bookmarksOnly
+    ? (data.recommended || []).filter((pick) => bookmarkStore.has(pick.item.id))
+    : data.recommended;
 
-$("btn-ingest").addEventListener("click", async () => {
-  const btn = $("btn-ingest");
-  btn.disabled = true;
-  btn.textContent = "수집 중…";
-  $("ingest-log").textContent = "기업마당·K-Startup에서 공고를 받아오고 중복을 통합합니다…";
-  try {
-    const result = await post("/api/ingest", {});
-    $("ingest-log").textContent = result.notes.join("\n");
-    await loadNotices();
-  } catch (e) {
-    $("ingest-log").textContent = "수집 실패 — " + e.message;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "공고 새로 수집";
+  list.innerHTML = "";
+  renderTally(bookmarksOnly ? summarizeItems(items) : data);
+  renderRecommended(picks);
+  if (!items.length) {
+    list.innerHTML = bookmarksOnly
+      ? `<p class="empty">현재 조건에 맞는 북마크가 없습니다.<br>
+          전체 공고에서 별을 눌러 관심 공고를 저장하세요.</p>`
+      : `<p class="empty">조건에 맞는 공고가 없습니다.
+          검색어나 필터를 지워 보세요.</p>`;
+    return;
   }
+  renderCards(list, items);
+}
+
+async function startRefresh(path) {
+  setRefreshButtons(true);
+  try {
+    const status = await post(path, {});
+    observedRefresh = true;
+    $("ingest-log").textContent = status.started
+      ? "갱신 작업을 시작했습니다. 현재 목록은 저장된 결과로 계속 볼 수 있습니다."
+      : "이미 갱신 작업이 진행 중입니다.";
+    await pollRefresh();
+  } catch (e) {
+    setRefreshButtons(false);
+    $("ingest-log").textContent = "갱신 요청 실패 — " + e.message;
+  }
+}
+
+$("btn-judge-all").addEventListener("click", () => startRefresh("/api/judge"));
+$("btn-ingest").addEventListener("click", () => startRefresh("/api/ingest"));
+$("btn-bookmarks").addEventListener("click", () => {
+  bookmarksOnly = !bookmarksOnly;
+  updateBookmarkFilterButton();
+  if (latestNoticeData) renderNoticeData(latestNoticeData);
 });
 
 ["f-q", "f-region", "f-within", "f-verdict", "f-sort"].forEach((id) => {
@@ -508,7 +581,7 @@ function renderDraft(draft) {
 function fillChatTargets(sections) {
   const sel = $("chat-target");
   const keep = sel.value;
-  sel.innerHTML = `<option value="">자동 — 말한 내용으로 판단</option>
+  sel.innerHTML = `<option value="">내용을 보고 항목 찾기</option>
     <option value="*">전체 항목</option>` +
     sections.map((s) => `<option>${escapeHtml(s.title)}</option>`).join("");
   sel.value = [...sel.options].some((o) => o.value === keep) ? keep : "";
@@ -532,12 +605,12 @@ async function openDraft(refresh, sections) {
   // 다른 공고의 초안을 열면 앞선 대화는 남겨 두면 안 된다 — "더 짧게" 같은 말이
   // 엉뚱한 공고의 맥락으로 이어진다.
   chatHistory = [];
-  $("chat-log").innerHTML = `<p class="empty small">무엇을 고칠지 적어 보세요.</p>`;
+  $("chat-log").innerHTML = `<p class="empty small">고칠 내용을 적으면 결과를 여기에서 보여 드립니다.</p>`;
   // 항목을 하나씩 따로 생성하므로(분량 확보) 항목 수만큼 시간이 걸린다.
   $("d-sections").innerHTML =
     `<p class="empty">초안을 만들고 있습니다…<br>항목마다 따로 써 내려가느라
      30초~1분 걸립니다. 잠시만 기다려 주세요.</p>`;
-  $("d-issues").innerHTML = `<p class="empty small">‘제출 전 점검’을 누르세요.</p>`;
+  $("d-issues").innerHTML = `<p class="empty small">‘제출 전 점검’을 누르면 확인할 내용을 보여 드립니다.</p>`;
   try {
     if (!refresh && !sections) {
       const saved = await api(noticeUrl(current.id, "draft"));
@@ -975,7 +1048,9 @@ $("btn-upload-past").addEventListener("click", async () => {
 
 // ─────────────────────────────────────────────────────────────── 시작
 
+updateBookmarkFilterButton();
 loadStatus();
 loadNotices();
 loadProfile();
 loadPastList();
+pollRefresh();
