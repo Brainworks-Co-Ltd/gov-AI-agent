@@ -95,7 +95,13 @@ body {
   width: 16px; height: 16px; flex: none; vertical-align: -3px;
   fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
 }
-button .i, label[for] .i { margin-right: 6px; }
+
+
+/* 아이콘 여백은 gap 이 준다. margin-right 로 주면 아이콘만 있는 버튼(D-day 타일이
+   card-open 버튼 안에 있다)에서도 붙어, 가운데 정렬이 6px 의 절반만큼 어긋난다. */
+button, .toolbar label[for] {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
 
 button {
   padding: 8px 15px; border: 1px solid var(--border); border-radius: var(--radius-sm);
