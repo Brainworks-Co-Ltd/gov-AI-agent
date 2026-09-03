@@ -23,9 +23,10 @@ import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-from agent import orchestrator
+from agent import editor, orchestrator, recommend
 from agent.schemas import CompanyProfile, Draft, DraftSection
-from tools import hyperclova_api, ingest, keys, profile_store, store
+from tools import (hyperclova_api, ingest, keys, past_store, profile_store,
+                   store)
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -119,6 +120,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json(profile_store.load().to_dict())
             return
 
+        if path == "/api/past-applications":
+            self._json({"items": past_store.listing()})
+            return
+
         conn = store.connect()
         try:
             if path == "/api/notices":
@@ -199,8 +204,21 @@ class Handler(BaseHTTPRequestHandler):
         for i in items:
             if i.get("verdict") in tally:
                 tally[i["verdict"]] += 1
+
+        # 추천은 **지금 걸린 필터 안에서** 고른다. 화면에 안 보이는 공고를 추천하면
+        # 눌렀을 때 목록에서 못 찾아 혼란스럽다.
+        profile = profile_store.load()
+        verdicts = {i["id"]: i["verdict"] for i in items if i.get("verdict")}
+        by_id = {i["id"]: i for i in items}
+        picks = recommend.top(
+            [store.get_notice(conn, i["id"]) for i in items[:400]],
+            profile, verdicts, limit=5)
+        for p in picks:
+            p["item"] = by_id.get(p["notice_id"])
+
         return {"items": items, "total": len(items),
-                "judged": sum(tally.values()), "tally": tally}
+                "judged": sum(tally.values()), "tally": tally,
+                "recommended": [p for p in picks if p["item"]]}
 
     def _judge_batch(self, conn, body: dict) -> dict:
         """아직 판정하지 않은 공고를 조금씩 판정한다 (공고함 '전체 판정'용).
@@ -240,6 +258,30 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(ingest.run(use_llm=body.get("use_llm", True),
                                       offline=body.get("offline", False)))
                 return
+            if path == "/api/past-applications":
+                # 파일을 그대로 본문으로 받는다. multipart 를 손으로 파싱하지 않으려고
+                # 이름은 헤더(X-Filename)에 담아 보낸다 — 표준 라이브러리 서버라
+                # multipart 파서가 없고, 직접 짜면 경계 문자열 처리에서 사고가 난다.
+                length = int(self.headers.get("Content-Length") or 0)
+                if length > 20 * 1024 * 1024:
+                    self._json({"ok": False, "note": "파일이 너무 큽니다(20MB 초과)."}, 413)
+                    return
+                filename = unquote(self.headers.get("X-Filename") or "")
+                data = self.rfile.read(length) if length else b""
+                if not filename or not data:
+                    self._json({"ok": False, "note": "파일을 받지 못했습니다."}, 400)
+                    return
+                result = past_store.save(filename, data)
+                result["items"] = past_store.listing()
+                self._json(result)
+                return
+
+            if path == "/api/past-applications/delete":
+                name = str(self._body().get("name", ""))
+                ok = past_store.remove(name)
+                self._json({"ok": ok, "items": past_store.listing()})
+                return
+
             if path == "/api/judge":
                 conn = store.connect()
                 try:
@@ -265,6 +307,27 @@ class Handler(BaseHTTPRequestHandler):
                         conn, notice, refresh=body.get("refresh", False),
                         sections=sections or None)
                     self._json(draft.to_dict())
+                    return
+                if tail == "chat":
+                    # 대화로 초안 고치기. **화면에 보이는 글**을 받아서 고친다 —
+                    # 저장된 초안을 고치면 담당자가 방금 손으로 쓴 문장이 날아간다.
+                    body = self._body()
+                    sections = [s for s in (body.get("sections") or [])
+                                if isinstance(s, dict)]
+                    if not sections:
+                        self._json({"error": "고칠 초안이 없습니다."}, 400)
+                        return
+                    spec = orchestrator.form_spec_of(conn, notice)
+                    result = editor.chat(
+                        notice, profile_store.load(), sections,
+                        str(body.get("message") or ""),
+                        history=body.get("history") or [],
+                        notice_text=spec.get("notice_text", ""))
+                    # 고친 결과를 저장해 둔다. 화면을 닫았다 열어도 남아 있어야 한다.
+                    if result.get("changed"):
+                        orchestrator.save_edited_draft(conn, notice, result["sections"],
+                                                       result.get("unresolved") or [])
+                    self._json(result)
                     return
                 if tail == "checklist":
                     # 담당자가 체크한 상태를 그대로 저장한다. 서류를 실제로 뗐는지는
@@ -310,7 +373,7 @@ def _split_notice_path(path: str) -> tuple[str | None, str]:
     rest = path[len(prefix):]
     if not rest:
         return None, ""
-    known = ("eligibility", "draft", "check", "checklist")
+    known = ("eligibility", "draft", "check", "checklist", "chat")
     head, _, tail = rest.rpartition("/")
     if tail in known and head:
         return unquote(head), tail

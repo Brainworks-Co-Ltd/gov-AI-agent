@@ -25,6 +25,28 @@ _TOKEN_RE = re.compile(r"[가-힣A-Za-z0-9]{2,}")
 # 마크다운 제목(## 사업 개요)을 기준으로 문서를 문항 단위로 쪼갠다.
 _HEADING_RE = re.compile(r"^#{1,6}\s*(.+?)\s*$", re.MULTILINE)
 
+# ── 빈 양식 걸러내기 ────────────────────────────────────────────────────
+# 담당자가 올리는 파일에는 '작성이 끝난 신청서'와 '빈 서식'이 섞인다. 빈 서식이
+# 재료로 들어가면 분량만 못 채우는 게 아니라 **초안을 망친다** — 실제로 서식에 들어
+# 있던 예시 문장(다른 회사의 AI 솔루션 목록)이 우리 회사 '사업 개요'에 그대로
+# 옮겨 적힌 적이 있다. 심사 지침이 거짓을 탈락 사유로 못 박은 사업에서 이건 사고다.
+#
+# 제목만 보고 판단한다. '본문 (휴먼명조, 12pt)' 처럼 서식에만 나오는 제목이 뚜렷해서,
+# 본문 내용까지 뒤지는 것보다 정확하고 오판이 적다.
+_TEMPLATE_HEADING = re.compile(
+    r"작성\s*(?:요령|지침|방법|안내|시\s*유의)|유의\s*사항|목\s*차|"
+    r"휴먼명조|맑은\s*고딕|바탕체|\d+\s*pt|본문\s*\(|"
+    r"분량|서식\s*\d|별지|붙임\s*\d|양식\s*다운")
+# 너무 짧은 문항은 재료로 못 쓴다 (제목만 있고 내용은 담당자가 채울 빈칸인 경우).
+_MIN_PASSAGE_CHARS = 120
+
+
+def is_template(heading: str, text: str) -> bool:
+    """이 문항이 '빈 서식/작성요령'이라 재료로 쓸 수 없는지."""
+    if _TEMPLATE_HEADING.search(heading or ""):
+        return True
+    return len((text or "").strip()) < _MIN_PASSAGE_CHARS
+
 
 class Passage:
     """과거 신청서의 문항 하나."""
@@ -71,9 +93,40 @@ def load_passages() -> list[Passage]:
             start = m.end()
             end = marks[i + 1].start() if i + 1 < len(marks) else len(content)
             body = content[start:end].strip()
-            if body:
-                passages.append(Passage(name, m.group(1), body))
+            heading = m.group(1)
+            if body and not is_template(heading, body):
+                passages.append(Passage(name, heading, body))
     return passages
+
+
+def usable_ratio(name: str) -> tuple[int, int]:
+    """파일 하나에서 (재료로 쓸 수 있는 문항 수, 전체 문항 수).
+
+    올린 파일이 빈 서식이면 앞 숫자가 0에 가깝다. 담당자에게 "이건 재료가 안 된다"고
+    바로 알려 주려고 따로 센다 — 조용히 걸러 버리면, 파일을 올렸는데도 초안이 그대로인
+    이유를 담당자가 알 길이 없다.
+    """
+    path = os.path.join(_PAST_DIR, os.path.basename(name))
+    if not os.path.isfile(path):
+        return 0, 0
+    with open(path, encoding="utf-8") as f:
+        content = f.read()
+    marks = list(_HEADING_RE.finditer(content))
+    if not marks:
+        text = content.strip()
+        return (0, 1) if is_template(name, text) else (1, 1)
+
+    total = usable = 0
+    for i, m in enumerate(marks):
+        start = m.end()
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(content)
+        body = content[start:end].strip()
+        if not body:
+            continue
+        total += 1
+        if not is_template(m.group(1), body):
+            usable += 1
+    return usable, total
 
 
 def _idf(passages: list[Passage]) -> dict[str, float]:

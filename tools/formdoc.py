@@ -156,6 +156,21 @@ _CTRL_WIDE = {1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21,
 _CTRL_TAB = 9
 
 
+def _join_utf16(chars: list[str]) -> str:
+    """한 워드씩 읽은 글자를 이어 붙이되, 서로게이트 쌍을 제대로 합친다.
+
+    본문은 UTF-16LE라 이모지나 희귀 한자는 **두 워드(서로게이트 쌍)**로 저장된다.
+    워드마다 chr() 로 만들면 짝이 갈라진 반쪽 문자가 남고, 그 문자열을 파일로 쓰는
+    순간 'surrogates not allowed' 로 터진다(실제로 업로드가 여기서 죽었다).
+    한 번 인코딩했다 되돌리면 쌍은 합쳐지고, 짝 없는 반쪽은 안전하게 대체된다.
+    """
+    text = "".join(chars)
+    try:
+        return text.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
+    except UnicodeError:
+        return text.encode("utf-8", "replace").decode("utf-8")
+
+
 def _hwp_text(data: bytes) -> str:
     cfb = _CFB(data)
     header = cfb.stream("FileHeader") or b""
@@ -247,7 +262,7 @@ def _hwp_text(data: bytes) -> str:
                     buf.append("\n")
                 elif c >= 32:
                     buf.append(chr(c))
-            text = "".join(buf).strip()
+            text = _join_utf16(buf).strip()
             if text:
                 emit(text)
 
