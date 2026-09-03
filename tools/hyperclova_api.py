@@ -139,11 +139,25 @@ def chat_tuned(system: str, user: str, max_tokens: int = 1500,
 
 
 def chat(system: str, user: str, max_tokens: int = 512,
-         temperature: float = 0.2) -> str:
-    """하이퍼클로바X에 요청을 보내고 생성된 텍스트를 돌려받는다."""
+         temperature: float = 0.2, model: str | None = None) -> str:
+    """하이퍼클로바X에 요청을 보내고 생성된 텍스트를 돌려받는다.
+
+    model 을 주면 그 모델로 부른다. HCX-007 계열은 v3 규격이 달라
+    maxTokens 대신 maxCompletionTokens 를 쓰고 thinking 설정이 필요하다
+    (maxTokens 로 부르면 400 Bad Request 가 난다).
+    """
     key = _load_key()
     if not key:
         raise RuntimeError("clova_api_key.txt 에 API 키가 없습니다.")
+
+    if model and model != MODEL:
+        payload = _post(
+            "https://clovastudio.stream.ntruss.com/v3/chat-completions/" + model,
+            {"messages": [{"role": "system", "content": system},
+                          {"role": "user", "content": user}],
+             "maxCompletionTokens": max_tokens, "temperature": temperature,
+             "topP": 0.8, "thinking": {"effort": "none"}}, timeout=90)
+        return payload["result"]["message"]["content"]
 
     body = json.dumps({
         "messages": [

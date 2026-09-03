@@ -244,3 +244,12 @@ ul.files .none { color: var(--muted); font-size: 13px; }
 .checklist .dname { font-size: 13px; }
 .checklist .dhint { grid-column: 3; color: var(--muted); font-size: 11px; }
 .checklist .src-note { margin: 8px 8px 4px; }
+
+/* 추천 공고 — 목록 맨 위. 왜 추천했는지가 함께 보여야 담당자가 믿는다 */
+.recommend { margin-bottom: 20px; }
+.recommend h3 { margin-top: 0; }
+.card.pick { border-color: var(--accent); background: #fbfcfe; }
+.card.pick .why {
+  margin-top: 5px; font-size: 12px; color: var(--accent);
+}
+#all-heading { margin-top: 4px; }
