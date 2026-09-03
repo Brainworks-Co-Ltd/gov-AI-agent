@@ -20,14 +20,17 @@
 
 :root {
   /* 표면 — 페이지가 카드보다 어둡다. 카드는 순백 고정. */
-  --background: #f4f7ff;
+  /* 캔버스는 중립 회색이다. 파랑을 바탕까지 깔면 브랜드 파랑이 포인트가 아니라
+     배경이 되어 화면 전체가 한 색으로 씻긴다. 카드(#fff, L 1.0)보다 어둡다 — §6-3. */
+  --background: #f3f4f7;   /* L 0.905 · 본문 14.89 · 보조 6.35 */
   --card: #ffffff;
-  --muted: #edf0fb;
+  --muted: #eceef2;        /* 인셋·표 헤더. 카드와 단차 0.146 */
 
   /* 선 */
-  --border: #c3ccf1;
-  --border-subtle: #d6ddf6;
-  --border-hover: #9eace8;
+  /* 선도 중립. 카드는 더 이상 테두리를 쓰지 않고(그림자로 뜬다) 입력칸·구분선만 쓴다. */
+  --border: #d5d8e0;
+  --border-subtle: #e4e6ec;
+  --border-hover: #aab0be;
 
   /* 글자 */
   --foreground: #181d3d;         /* 제목 15.29:1 */
@@ -44,11 +47,11 @@
   --ok-bg: #e9f9ee;   --ok-fg: #193b2d;   --ok-border: #b4dfc4;   --ok-solid: #30a46c;
   --no-bg: #ffefef;   --no-fg: #641723;   --no-border: #f9c6c6;   --no-solid: #e5484d;
   --chk-bg: #fff7c2;  --chk-fg: #4f3422;  --chk-border: #e9c162;  --chk-solid: #ffc53d;
-  --pending-bg: #edf0fb; --pending-fg: #4d5783; --pending-border: #d6ddf6;
+  --pending-bg: #eceef2; --pending-fg: #4d5783; --pending-border: #dcdfe6;
 
   --card-foreground: var(--foreground);
   --primary-foreground: #ffffff;      /* primary 위 5.45:1 */
-  --secondary: #e1e6f9;               /* gray-3 */
+  --secondary: #e4e6ec;               /* 중립 gray-3 */
   --secondary-foreground: var(--foreground);
   --input: var(--border);
   /* primary 5% — 사방 보더 대신 은은한 바탕으로 활성 상태를 표시한다 (TailGrids Sidebar Menu) */
@@ -60,8 +63,10 @@
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-pill: 999px;
-  --shadow-card: 0 1px 2px rgba(24, 29, 61, .04), 0 1px 3px rgba(24, 29, 61, .03);
-  --shadow-lift: 0 4px 12px rgba(24, 29, 61, .07), 0 1px 3px rgba(24, 29, 61, .04);
+  /* 카드가 테두리 없이 뜨려면 그림자가 그 몫을 해야 한다. 아래로 퍼지는 넓고 옅은
+     그림자 하나 + 경계를 잡는 얇은 것 하나. */
+  --shadow-card: 0 1px 2px rgba(24, 29, 61, .05), 0 4px 14px rgba(24, 29, 61, .06);
+  --shadow-lift: 0 2px 4px rgba(24, 29, 61, .06), 0 10px 24px rgba(24, 29, 61, .10);
 }
 
 * { box-sizing: border-box; }
@@ -72,7 +77,7 @@ body {
   color: var(--muted-foreground);
   font-family: "Pretendard Variable", Pretendard, "Malgun Gothic", "맑은 고딕",
                "Apple SD Gothic Neo", system-ui, sans-serif;
-  font-size: 14px;
+  font-size: 13px;          /* base — §4 6단 스케일의 기준 */
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
@@ -81,6 +86,14 @@ body {
 :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 /* ═══════════════════════════════════════════════════ ② 프리미티브 */
+
+/* 아이콘. index.html 상단 스프라이트의 <symbol> 을 <use> 로 부른다. 색은 글자색을
+   따르고, 선 굵기는 Lucide 기본(2)이다. 글자 옆에 붙을 때 baseline 을 맞춘다. */
+.i {
+  width: 16px; height: 16px; flex: none; vertical-align: -3px;
+  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+button .i, label[for] .i { margin-right: 6px; }
 
 button {
   padding: 8px 15px; border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -126,15 +139,15 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
 .badge.미판정    { background: var(--pending-bg); color: var(--pending-fg); border-color: var(--pending-border); }
 
 /* 카드 — 페이지보다 밝은 순백이라야 떠 보인다. */
+/* 테두리를 걷었다. 1px 선으로 둘러싼 카드는 와이어프레임처럼 읽힌다 — 흰 면이
+   중립 캔버스 위에 그림자로 떠 있으면 선 없이도 경계가 선다. */
 .card {
-  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--card); border: 0; border-radius: var(--radius-md);
   padding: 0; display: flex; align-items: center; gap: 0;
   box-shadow: var(--shadow-card);
-  transition: border-color .14s, box-shadow .14s, transform .14s;
+  transition: box-shadow .14s, transform .14s;
 }
-.card:hover {
-  border-color: var(--border-hover); box-shadow: var(--shadow-lift); transform: translateY(-1px);
-}
+.card:hover { box-shadow: var(--shadow-lift); transform: translateY(-1px); }
 
 .grid {
   width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card);
@@ -172,7 +185,7 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
 
 /* 흰 상자 — 패널·사이드바가 공유하는 바탕 */
 .box, .form, .section {
-  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--card); border: 0; border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
 }
 
@@ -198,6 +211,7 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
   background: var(--card); border-right: 1px solid var(--border-subtle);
   display: flex; flex-direction: column;
   position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  box-shadow: 1px 0 0 rgba(24, 29, 61, .02);
 }
 .rail-brand { padding: 20px 18px 6px; }
 .rail-brand b { display: block; font-size: 15px; color: var(--foreground); letter-spacing: -.02em; }
@@ -222,22 +236,19 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
   border-right: 3px solid var(--primary); border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   margin-right: -12px; padding-right: 13px;   /* 레일 오른쪽 끝에 바를 붙인다 */
 }
-.step-n {
-  width: 20px; height: 20px; flex: none; border-radius: var(--radius-xs);
-  display: grid; place-items: center; font-size: 11px; font-weight: 700;
-  background: var(--secondary); color: var(--muted-foreground);
-}
-.steps .tab.active .step-n { background: var(--primary); color: var(--primary-foreground); }
+.steps .tab .i { width: 17px; height: 17px; margin: 0; color: var(--muted-foreground); }
+.steps .tab.active .i { color: var(--primary); }
 
 /* 단계를 넘어가도 어느 공고를 붙들고 있는지 안 끊기게 한다. */
 .rail-ctx { margin-top: auto; padding: 14px 16px 12px; border-top: 1px solid var(--border-subtle); }
-.rail-ctx .k { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; color: var(--muted-foreground); }
+.rail-ctx .k { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--muted-foreground); }
 .rail-ctx .t { font-size: 12px; font-weight: 600; color: var(--foreground); line-height: 1.45; margin: 5px 0 7px; }
 /* 공고 미선택 시엔 rail-ctx 가 숨겨져 있으므로 상태 줄이 바닥을 잡는다. */
 .rail-foot { margin-top: auto; padding: 12px 16px 16px; border-top: 1px solid var(--border-subtle); }
 .rail-ctx + .rail-foot { border-top: none; padding-top: 0; }
 
-.status { color: var(--muted-foreground); font-size: 11.5px; line-height: 1.7; }
+/* 한글은 어절 안에서 끊으면 안 읽힌다 — 'K-Startup 연결됨'이 'K-/Startup'으로 갈렸다. */
+.status { color: var(--muted-foreground); font-size: 12px; line-height: 1.7; word-break: keep-all; }
 .status .off { color: var(--no-fg); font-weight: 600; }
 .status .on { color: var(--ok-fg); font-weight: 600; }
 
@@ -245,13 +256,13 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
 
 main { padding: 24px 28px 60px; max-width: 1240px; }
 .page-head { margin-bottom: 18px; }
-.page-head h1 { margin: 0; font-size: 20px; color: var(--foreground); letter-spacing: -.03em; }
+.page-head h1 { margin: 0; font-size: 21px; color: var(--foreground); letter-spacing: -.03em; }
 .sub { margin: 5px 0 0; color: var(--muted-foreground); font-size: 13px; }
 
 /* 판정 화면 우측 열 — 서류·일정·첨부를 세로 스택에서 빼내 요건표를 위로 올린다 */
 .sidecol { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 14px; }
 .sidecol .box { padding: 14px 15px; min-width: 0; }
-.sidecol h3 { margin: 0 0 10px; font-size: 12.5px; }
+.sidecol h3 { margin: 0 0 10px; font-size: 12px; }
 .sidecol ul.files { flex-direction: column; flex-wrap: nowrap; gap: 6px; min-width: 0; }
 .sidecol ul.files li { min-width: 0; }
 .sidecol ul.files a { display: flex; width: 100%; max-width: 100%; min-width: 0; }
@@ -312,7 +323,7 @@ main { padding: 24px 28px 60px; max-width: 1240px; }
    (누르는 것) 입력칸은 테두리로 눌려 있는데(쓰는 것), 그 구분이 뜻을 갖는다.
    .toolbar 는 네 곳에서 쓰이고 나머지 셋은 이미 .box 안이라 여기만 잡는다. */
 #tab-inbox > .toolbar {
-  background: var(--card); border: 1px solid var(--border-subtle);
+  background: var(--card); border: 0;
   border-radius: var(--radius-md); box-shadow: var(--shadow-card);
   padding: 12px 14px; row-gap: 10px;
 }
@@ -342,7 +353,7 @@ main { padding: 24px 28px 60px; max-width: 1240px; }
 .hint { color: var(--muted-foreground); font-size: 13px; margin-top: 0; }
 
 h2 { font-size: 18px; margin: 0 0 4px; color: var(--foreground); letter-spacing: -.03em; }
-h3 { font-size: 14px; margin: 24px 0 10px; color: var(--foreground); letter-spacing: -.02em; }
+h3 { font-size: 15px; margin: 24px 0 10px; color: var(--foreground); letter-spacing: -.02em; }
 .meta { color: var(--muted-foreground); font-size: 12px; margin: 0; }
 
 /* ───────────────────────────────────────── ① 공고함 카드 */
@@ -360,26 +371,38 @@ h3 { font-size: 14px; margin: 24px 0 10px; color: var(--foreground); letter-spac
   width: 40px; height: 40px; flex: none; display: grid; place-items: center;
   padding: 0; margin-right: 12px; border-color: transparent; border-radius: var(--radius-pill);
   background: transparent; box-shadow: none; color: var(--muted-foreground);
-  font-size: 22px; line-height: 1;
+  line-height: 1;
 }
 .bookmark-button:hover {
   background: var(--primary-soft); border-color: transparent;
   color: var(--accent-foreground); box-shadow: none;
 }
+.bookmark-button .i { width: 17px; height: 17px; margin: 0; }
+.bookmark-button[aria-pressed="true"] .i { fill: var(--chk-solid); stroke: var(--chk-solid); }
 .bookmark-button[aria-pressed="true"] {
   background: var(--primary-soft); color: var(--accent-foreground);
   border-color: transparent;
 }
+/* D-day 타일 — 이 화면의 시그니처. 682건을 훑는 담당자의 스캔 기준은 마감 하나라,
+   레퍼런스의 "아이콘 든 색 타일" 관용구를 여기 한 곳에만 쓴다. 평소엔 옅은 파랑,
+   3일 이내면 붉은 타일로 바뀌어 색만으로 급한 것이 걸린다. 추천 카드는 채운 파랑. */
 .card .dday {
-  min-width: 66px; text-align: center; font-weight: 800; font-size: 15px;
-  color: var(--accent-foreground); letter-spacing: -.04em;
-  padding: 8px 4px; border-radius: var(--radius-sm); background: var(--accent);
+  width: 56px; min-height: 52px; flex: none; margin: 10px 0 10px 10px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  font-weight: 800; font-size: 13px; letter-spacing: -.03em; line-height: 1;
+  color: var(--accent-foreground); background: var(--accent); border-radius: var(--radius-sm);
 }
+.card .dday .i { width: 15px; height: 15px; stroke-width: 2.2; }
+.card .dday.urgent { background: var(--no-bg); color: var(--no-fg); }
+.card .dday.urgent .i { stroke: var(--no-solid); }
+.card .dday.quiet { background: var(--muted); color: var(--muted-foreground); }
+.card.pick .dday { background: var(--primary); color: var(--primary-foreground); }
+.card.pick .dday .i { stroke: var(--primary-foreground); }
 /* 3일 이내 마감은 카드에서 제일 먼저 눈에 들어와야 한다. */
 .card .dday.urgent { color: var(--no-fg); background: var(--no-bg); }
 .card .grow { flex: 1; min-width: 0; }
-.card .title { font-weight: 700; color: var(--foreground); font-size: 14.5px; letter-spacing: -.02em; }
-.card .line2 { color: var(--muted-foreground); font-size: 12.5px; margin-top: 4px; }
+.card .title { font-weight: 700; color: var(--foreground); font-size: 15px; letter-spacing: -.02em; }
+.card .line2 { color: var(--muted-foreground); font-size: 12px; margin-top: 4px; }
 
 .tag {
   display: inline-block; padding: 2px 8px; border-radius: var(--radius-xs); font-size: 11px;
@@ -395,13 +418,13 @@ h3 { font-size: 14px; margin: 24px 0 10px; color: var(--foreground); letter-spac
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md);
   padding: 14px 18px; box-shadow: var(--shadow-card);
 }
-.verdict-summary .badge { font-size: 14px; padding: 5px 15px; }
+.verdict-summary .badge { font-size: 13px; padding: 5px 15px; }
 .dday { color: var(--accent-foreground); font-weight: 700; }
 
 /* 요건 열은 표에서 기준점이라 진하게, 근거 열은 원문 인용이라 따로 세운다. */
 .grid td:first-child { color: var(--foreground); }
 .grid .quote {
-  color: var(--muted-foreground); font-size: 12.5px; font-style: normal; line-height: 1.7;
+  color: var(--muted-foreground); font-size: 12px; font-style: normal; line-height: 1.7;
   background: var(--muted); border-radius: var(--radius-xs); padding: 7px 10px;
 }
 .grid .reason { color: var(--muted-foreground); font-size: 12px; margin-top: 4px; }
@@ -453,7 +476,7 @@ ul.files .none { color: var(--muted-foreground); font-size: 13px; }
 .split { display: grid; grid-template-columns: 1fr 340px; gap: 18px; align-items: start; }
 .sections { display: grid; gap: 14px; }
 .section { padding: 14px 16px; }
-.section h4 { margin: 0 0 3px; font-size: 14px; color: var(--foreground); letter-spacing: -.02em; }
+.section h4 { margin: 0 0 3px; font-size: 13px; color: var(--foreground); letter-spacing: -.02em; }
 .section .src { color: var(--muted-foreground); font-size: 11px; margin-bottom: 8px; }
 .section textarea { width: 100%; min-height: 130px; resize: vertical; line-height: 1.7; }
 
@@ -605,7 +628,8 @@ input[type=checkbox]:checked::after {
 /* 추천 공고 — 목록 맨 위. 왜 추천했는지가 함께 보여야 담당자가 믿는다 */
 .recommend { margin-bottom: 20px; }
 .recommend h3 { margin-top: 0; }
-.card.pick { border-color: var(--primary); box-shadow: var(--shadow-lift); }
+/* 추천 카드의 강조는 테두리가 아니라 D-day 타일이 맡는다 (위). 그림자만 한 단 올린다. */
+.card.pick { box-shadow: var(--shadow-lift); }
 .card.pick .why {
   margin-top: 5px; font-size: 12px; color: var(--accent-foreground);
 }

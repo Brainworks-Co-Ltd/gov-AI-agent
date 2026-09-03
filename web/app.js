@@ -98,7 +98,7 @@ async function loadStatus() {
 // ─────────────────────────────────────────────────────────── ① 공고함
 
 function setBookmarkButtonState(bookmark, saved) {
-  bookmark.textContent = saved ? "★" : "☆";
+  bookmark.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-star"/></svg>';   // 채움 여부는 aria-pressed 로 CSS 가 그린다
   bookmark.setAttribute("aria-pressed", String(saved));
   bookmark.setAttribute("aria-label", saved ? "북마크 해제" : "북마크 추가");
   bookmark.title = saved ? "북마크 해제" : "북마크 추가";
@@ -106,7 +106,7 @@ function setBookmarkButtonState(bookmark, saved) {
 
 function updateBookmarkFilterButton() {
   const button = $("btn-bookmarks");
-  button.textContent = `북마크만 ${bookmarkStore.count()}`;
+  button.innerHTML = `<svg class="i" aria-hidden="true"><use href="#i-bookmark"/></svg>북마크만 ${bookmarkStore.count()}`;
   button.setAttribute("aria-pressed", String(bookmarksOnly));
 }
 
@@ -137,6 +137,8 @@ function noticeCard(item) {
   const dday = item.d_day === null ? "상시"
     : item.d_day < 0 ? "마감" : `D-${item.d_day}`;
   const urgent = item.d_day !== null && item.d_day >= 0 && item.d_day <= 3;
+  // 마감이 없거나 지난 것은 스캔 대상이 아니라 타일을 회색으로 낮춘다.
+  const quiet = item.d_day === null || item.d_day < 0;
   const verdict = item.verdict || "미판정";
   const merged = item.merged
     ? `<span class="tag">${escapeHtml(item.sources.join(" · "))} 통합</span>` : "";
@@ -146,7 +148,7 @@ function noticeCard(item) {
   open.type = "button";
   open.className = "card-open";
   open.innerHTML = `
-    <div class="dday ${urgent ? "urgent" : ""}">${dday}</div>
+    <div class="dday ${urgent ? "urgent" : quiet ? "quiet" : ""}"><svg class="i" aria-hidden="true"><use href="#i-calendar-clock"/></svg>${dday}</div>
     <div class="grow">
       <div class="title">${escapeHtml(item.title)}${merged}</div>
       <div class="line2">${escapeHtml(item.agency || "소관기관 미상")}
