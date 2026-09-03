@@ -45,7 +45,7 @@
   --ok-bg: #e9f9ee;   --ok-fg: #193b2d;   --ok-border: #b4dfc4;   --ok-solid: #30a46c;
   --no-bg: #ffefef;   --no-fg: #641723;   --no-border: #f9c6c6;   --no-solid: #e5484d;
   --chk-bg: #fff7c2;  --chk-fg: #4f3422;  --chk-border: #e9c162;  --chk-solid: #ffc53d;
-  --pending-bg: #edf0fb; --pending-fg: #6874a9; --pending-border: #d6ddf6;
+  --pending-bg: #edf0fb; --pending-fg: #4d5783; --pending-border: #d6ddf6;
 
   --radius-sm: 8px;
   --radius-md: 12px;
