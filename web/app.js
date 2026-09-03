@@ -679,6 +679,34 @@ async function sendChat() {
   }
 }
 
+/* 손으로 고친 글을 저장한다.
+
+   지금까지 초안이 저장되는 경로는 대화(chat)뿐이었다. textarea 에 직접 친 글은
+   collectDraft() 로 모아 점검·복사에만 쓰였고 어디에도 남지 않아서, 탭을 옮기거나
+   새로고침하면 사라졌다. 명시적인 저장 버튼을 두면 누르는 걸 잊으므로 친 뒤
+   잠깐 멈추면 알아서 보낸다. */
+let saveTimer = null;
+
+function saveDraftSoon() {
+  if (!current) return;
+  clearTimeout(saveTimer);
+  $("d-saved").textContent = "…";
+  saveTimer = setTimeout(async () => {
+    try {
+      await post(noticeUrl(current.id, "save"), { sections: collectDraft().sections });
+      currentDraft = collectDraft();     // 화면과 기억을 같은 글로 맞춘다
+      $("d-saved").textContent = "저장됨";
+    } catch (e) {
+      $("d-saved").textContent = "저장 실패 — " + e.message;
+    }
+  }, 900);
+}
+
+// 항목은 초안을 그릴 때마다 새로 만들어지므로 컨테이너에 한 번만 건다.
+$("d-sections").addEventListener("input", (e) => {
+  if (e.target.tagName === "TEXTAREA") saveDraftSoon();
+});
+
 // 어느 항목이 바뀌었는지 눈으로 알 수 있게 잠깐 테두리를 준다. 항목이 여럿이면
 // 화면 어디가 달라졌는지 글만 봐서는 찾기 어렵다.
 function highlightChanged(titles) {

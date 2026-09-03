@@ -333,6 +333,23 @@ class Handler(BaseHTTPRequestHandler):
                         sections=sections or None)
                     self._json(draft.to_dict())
                     return
+                if tail == "save":
+                    # 담당자가 textarea 에 직접 친 글을 저장한다. 지금까지는
+                    # save_edited_draft 가 대화 경로에서만 불려서, 손으로 고치고
+                    # 탭을 옮기거나 새로고침하면 그대로 날아갔다.
+                    body = self._body()
+                    sections = [s for s in (body.get("sections") or [])
+                                if isinstance(s, dict)]
+                    if not sections:
+                        self._json({"error": "저장할 초안이 없습니다."}, 400)
+                        return
+                    # 점검에서 나온 '확인 필요' 목록은 본문을 손봤다고 사라지지
+                    # 않는다. 저장돼 있던 것을 그대로 이어 쓴다.
+                    saved = store.get_draft(conn, notice.id) or {}
+                    unresolved = (saved.get("draft") or {}).get("unresolved") or []
+                    orchestrator.save_edited_draft(conn, notice, sections, unresolved)
+                    self._json({"saved": len(sections)})
+                    return
                 if tail == "chat":
                     # 대화로 초안 고치기. **화면에 보이는 글**을 받아서 고친다 —
                     # 저장된 초안을 고치면 담당자가 방금 손으로 쓴 문장이 날아간다.
@@ -399,7 +416,7 @@ def _split_notice_path(path: str) -> tuple[str | None, str]:
     rest = path[len(prefix):]
     if not rest:
         return None, ""
-    known = ("eligibility", "draft", "check", "checklist", "chat")
+    known = ("eligibility", "draft", "check", "checklist", "chat", "save")
     head, _, tail = rest.rpartition("/")
     if tail in known and head:
         return unquote(head), tail
