@@ -19,16 +19,18 @@
     <span>공고 분석 · 신청서 초안</span>
   </div>
 
+  <!-- 프로필이 판정의 기준값이라 여기가 출발점이다. 다만 한 번 세팅하고 마는
+       일이라, 공고마다 되풀이하는 1·2·3 파이프라인과는 무리를 나눠 둔다. -->
+  <div class="rail-lab">먼저 할 일</div>
+  <div class="steps">
+    <button class="tab" data-tab="profile"><span class="step-n">회</span>회사 프로필</button>
+  </div>
+
   <div class="rail-lab">진행 단계</div>
   <div class="steps">
     <button class="tab active" data-tab="inbox"><span class="step-n">1</span>공고함</button>
     <button class="tab" data-tab="verdict"><span class="step-n">2</span>자격 판정</button>
     <button class="tab" data-tab="draft"><span class="step-n">3</span>초안 · 점검</button>
-  </div>
-
-  <div class="rail-lab">내 정보</div>
-  <div class="steps">
-    <button class="tab" data-tab="profile"><span class="step-n">회</span>회사 프로필</button>
   </div>
 
   <!-- 지금 붙들고 있는 공고. 단계를 넘어가도 컨텍스트가 끊기지 않게 한다. -->
@@ -54,7 +56,30 @@
       <button id="btn-ingest" class="primary">공고 새로 수집</button>
       <button id="btn-judge-all">목록 전체 판정</button>
       <button id="btn-judge-stop" hidden>중지</button>
-      <label>지역 <input id="f-region" type="text" placeholder="예: 광주" size="8"></label>
+      <input id="f-q" type="search" placeholder="공고 검색 (예: 광주 제조)" size="18">
+      <label>지역
+        <select id="f-region">
+          <option value="">전체</option>
+          <option>전국</option>
+          <option>서울</option>
+          <option>경기</option>
+          <option>인천</option>
+          <option>부산</option>
+          <option>대구</option>
+          <option>광주</option>
+          <option>대전</option>
+          <option>울산</option>
+          <option>세종</option>
+          <option>강원</option>
+          <option>충북</option>
+          <option>충남</option>
+          <option>전북</option>
+          <option>전남</option>
+          <option>경북</option>
+          <option>경남</option>
+          <option>제주</option>
+        </select>
+      </label>
       <label>마감
         <select id="f-within">
           <option value="">전체</option>
@@ -69,6 +94,14 @@
           <option value="가능">가능</option>
           <option value="확인필요">확인필요</option>
           <option value="불가">불가</option>
+        </select>
+      </label>
+      <label>정렬
+        <select id="f-sort">
+          <option value="">마감 임박순</option>
+          <option value="far">마감 여유순</option>
+          <option value="recent">최근 공고순</option>
+          <option value="verdict">판정 순</option>
         </select>
       </label>
       <span id="inbox-count" class="count"></span>
@@ -153,6 +186,7 @@
         <button id="btn-copy">전체 복사</button>
         <button id="btn-edit-sections">작성 항목 고치기</button>
         <button id="btn-regenerate">같은 항목으로 다시 쓰기</button>
+        <span id="d-saved" class="count"></span>
         <span id="d-copied" class="count"></span>
       </div>
 
@@ -169,23 +203,37 @@
       </div>
       <div class="split">
         <div id="d-sections" class="sections"></div>
-        <aside class="issues">
-          <h3>글 점검</h3>
-          <p class="hint">오탈자와 문서 간 수치 불일치만 봅니다.<br>
-             제출서류는 ‘자격 판정’ 단계의 체크리스트에서 챙기세요.</p>
-          <div id="d-issues"><p class="empty small">‘제출 전 점검’을 누르세요.</p></div>
-
-          <h3>말로 고치기</h3>
-          <p class="hint">고칠 곳을 말로 알려 주면 그 항목만 다시 씁니다.<br>
-             예) “기대효과에 숫자 목표를 넣어 줘”, “추진 계획을 단계별로”,
-             “전체적으로 문장을 짧게”</p>
-          <div id="chat-log" class="chat-log">
-            <p class="empty small">무엇을 고칠지 적어 보세요.</p>
+        <!-- 판정 화면 우측 열과 같은 구조. 성격이 다른 두 가지(자동 점검 / 대화)를
+             한 카드에 이어 붙이면 어디까지가 무엇인지 안 보인다. -->
+        <aside class="sidecol">
+          <div class="box">
+            <h3>글 점검</h3>
+            <p class="hint">오탈자와 문서 간 수치 불일치만 봅니다.<br>
+               제출서류는 ‘자격 판정’ 단계의 체크리스트에서 챙기세요.</p>
+            <div id="d-issues"><p class="empty small">‘제출 전 점검’을 누르세요.</p></div>
           </div>
-          <div class="chat-input">
-            <textarea id="chat-text" rows="2"
-                      placeholder="예) 기대효과가 두루뭉술해. 무엇이 얼마나 좋아지는지 넣어 줘"></textarea>
-            <button id="btn-chat-send" class="primary">보내기</button>
+
+          <div class="box">
+            <h3>말로 고치기</h3>
+            <p class="hint">고칠 항목을 고르고 어떻게 고칠지 적으세요.
+               ‘자동’으로 두면 적은 내용에서 항목을 찾습니다.<br>
+               예) “숫자 목표를 넣어 줘”, “단계별로 나눠 줘”, “문장을 짧게”</p>
+            <div id="chat-log" class="chat-log">
+              <p class="empty small">무엇을 고칠지 적어 보세요.</p>
+            </div>
+            <!-- 고칠 항목을 먼저 고르게 한다. 말로만 지정하면 "추진 배경을 길게"
+                 처럼 항목 이름을 정확히 불러야 하는데, 그걸 화면이 안 알려 준다. -->
+            <label class="chat-pick" for="chat-target">고칠 항목
+              <select id="chat-target">
+                <option value="">자동 — 말한 내용으로 판단</option>
+                <option value="*">전체 항목</option>
+              </select>
+            </label>
+            <div class="chat-input">
+              <textarea id="chat-text" rows="2"
+                        placeholder="예) 기대효과가 두루뭉술해. 무엇이 얼마나 좋아지는지 넣어 줘"></textarea>
+              <button id="btn-chat-send" class="primary">보내기</button>
+            </div>
           </div>
         </aside>
       </div>
@@ -198,24 +246,39 @@
       <h1>회사 프로필</h1>
       <p class="sub">여기 값이 자격 판정과 신청서 초안의 기준이 됩니다. 고치면 이전 판정은 자동으로 다시 계산됩니다.</p>
     </div>
+    <!-- 처음 들어온 사람에게는 공고함보다 여기가 먼저다. 판정에 쓰이는 값이
+         비어 있으면 무엇을 왜 채워야 하는지 먼저 말한다. 다 채워져 있으면
+         이 상자는 나오지 않고 곧장 공고함으로 간다. -->
+    <div class="box" id="profile-onboard" hidden>
+      <h3>먼저 회사 정보를 채워 주세요</h3>
+      <p class="hint" id="onboard-why"></p>
+      <p class="hint">나머지 항목은 신청서 초안을 쓸 때 쓰입니다. 지금 비워 둬도
+        공고를 보고 자격을 판정하는 데는 지장이 없습니다.</p>
+    </div>
+
     <form id="profile-form" class="form"></form>
     <button id="btn-save-profile" class="primary">프로필 저장</button>
     <span id="profile-saved" class="count"></span>
 
-    <h3>기존 사업계획서</h3>
-    <p class="hint">
-      예전에 제출했던 신청서·사업계획서를 올리면 초안을 쓸 때 참고합니다.
-      회사 프로필만으로는 어느 회사에나 해당하는 밋밋한 글이 나오는데,
-      실제 제출본이 있으면 그 회사의 말투와 사업 내용이 살아납니다.<br>
-      hwp · hwpx · docx · zip · txt · md 를 읽습니다. (PDF는 아직 못 읽습니다)
-    </p>
-    <div class="toolbar">
-      <input type="file" id="past-file" multiple
-             accept=".hwp,.hwpx,.docx,.zip,.txt,.md">
-      <button id="btn-upload-past" class="primary">올리기</button>
-      <span id="past-log" class="count"></span>
+    <!-- 프로필 폼과 나란한 별개의 입력이므로 같은 카드 면 위에 올린다.
+         밖에 두면 '프로필 저장' 버튼에 딸린 것처럼 보인다. -->
+    <div class="box">
+      <h3>기존 사업계획서</h3>
+      <p class="hint">
+        예전에 제출했던 신청서·사업계획서를 올리면 초안을 쓸 때 참고합니다.
+        회사 프로필만으로는 어느 회사에나 해당하는 밋밋한 글이 나오는데,
+        실제 제출본이 있으면 그 회사의 말투와 사업 내용이 살아납니다.<br>
+        hwp · hwpx · docx · zip · txt · md 를 읽습니다. (PDF는 아직 못 읽습니다)
+      </p>
+      <div class="toolbar">
+        <input type="file" id="past-file" multiple
+               accept=".hwp,.hwpx,.docx,.zip,.txt,.md">
+        <label for="past-file">파일 고르기</label>
+        <button id="btn-upload-past" class="primary" disabled>올리기</button>
+        <span id="past-log" class="count"></span>
+      </div>
+      <ul id="past-list" class="files"></ul>
     </div>
-    <ul id="past-list" class="files"></ul>
   </section>
 
 </main>

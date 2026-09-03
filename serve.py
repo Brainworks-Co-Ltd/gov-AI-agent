@@ -45,6 +45,9 @@ _STATIC_TYPES = {".html": "text/html; charset=utf-8",
                  ".js": "application/javascript; charset=utf-8",
                  ".woff2": "font/woff2"}
 
+# 판정 순 정렬. 담당자가 먼저 볼 것부터 — 가능 → 확인필요 → 불가 → 미판정.
+_VERDICT_SORT = {"가능": 0, "확인필요": 1, "불가": 2}
+
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
@@ -196,6 +199,28 @@ class Handler(BaseHTTPRequestHandler):
         verdict = query.get("verdict", [""])[0].strip()
         if verdict:
             items = [i for i in items if i.get("verdict") == verdict]
+
+        # 키워드 검색. 낱말을 모두 포함해야 통과시킨다 — "광주 제조" 처럼 좁혀 가는
+        # 쪽이 "둘 중 아무거나"보다 목록을 줄이는 데 쓸모 있다.
+        q = query.get("q", [""])[0].strip().lower()
+        if q:
+            words = q.split()
+            items = [i for i in items
+                     if all(w in (f"{i.get('title') or ''} {i.get('agency') or ''} "
+                                  f"{i.get('summary') or ''}").lower() for w in words)]
+
+        # 정렬. 기본(마감 임박순)은 store.open_businesses 가 이미 해 두었다.
+        # 파이썬 sort 는 안정 정렬이라 값이 같으면 그 순서가 남는다.
+        sort = query.get("sort", [""])[0].strip()
+        if sort == "far":
+            # 마감이 먼 것부터. 마감 미상은 여기서도 맨 뒤에 둔다.
+            items.sort(key=lambda i: (i.get("d_day") is None, -(i.get("d_day") or 0)))
+        elif sort == "recent":
+            # 접수를 늦게 시작한 것부터. first_seen 은 전건이 수집일이라 못 쓴다.
+            items.sort(key=lambda i: i.get("apply_begin") or "", reverse=True)
+        elif sort == "verdict":
+            items.sort(key=lambda i: (_VERDICT_SORT.get(i.get("verdict"), 3),
+                                      i.get("d_day") is None, i.get("d_day") or 0))
         return items
 
     def _notices(self, conn, query: dict) -> dict:
@@ -308,6 +333,23 @@ class Handler(BaseHTTPRequestHandler):
                         sections=sections or None)
                     self._json(draft.to_dict())
                     return
+                if tail == "save":
+                    # 담당자가 textarea 에 직접 친 글을 저장한다. 지금까지는
+                    # save_edited_draft 가 대화 경로에서만 불려서, 손으로 고치고
+                    # 탭을 옮기거나 새로고침하면 그대로 날아갔다.
+                    body = self._body()
+                    sections = [s for s in (body.get("sections") or [])
+                                if isinstance(s, dict)]
+                    if not sections:
+                        self._json({"error": "저장할 초안이 없습니다."}, 400)
+                        return
+                    # 점검에서 나온 '확인 필요' 목록은 본문을 손봤다고 사라지지
+                    # 않는다. 저장돼 있던 것을 그대로 이어 쓴다.
+                    saved = store.get_draft(conn, notice.id) or {}
+                    unresolved = (saved.get("draft") or {}).get("unresolved") or []
+                    orchestrator.save_edited_draft(conn, notice, sections, unresolved)
+                    self._json({"saved": len(sections)})
+                    return
                 if tail == "chat":
                     # 대화로 초안 고치기. **화면에 보이는 글**을 받아서 고친다 —
                     # 저장된 초안을 고치면 담당자가 방금 손으로 쓴 문장이 날아간다.
@@ -322,7 +364,8 @@ class Handler(BaseHTTPRequestHandler):
                         notice, profile_store.load(), sections,
                         str(body.get("message") or ""),
                         history=body.get("history") or [],
-                        notice_text=spec.get("notice_text", ""))
+                        notice_text=spec.get("notice_text", ""),
+                        target=str(body.get("target") or ""))
                     # 고친 결과를 저장해 둔다. 화면을 닫았다 열어도 남아 있어야 한다.
                     if result.get("changed"):
                         orchestrator.save_edited_draft(conn, notice, result["sections"],
@@ -373,7 +416,7 @@ def _split_notice_path(path: str) -> tuple[str | None, str]:
     rest = path[len(prefix):]
     if not rest:
         return None, ""
-    known = ("eligibility", "draft", "check", "checklist", "chat")
+    known = ("eligibility", "draft", "check", "checklist", "chat", "save")
     head, _, tail = rest.rpartition("/")
     if tail in known and head:
         return unquote(head), tail

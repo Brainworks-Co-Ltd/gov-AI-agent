@@ -162,7 +162,7 @@ def _rewrite(section: dict, instruction: str, message: str, notice: Notice,
 
 def chat(notice: Notice, profile: CompanyProfile, sections: list[dict],
          message: str, history: list[dict] | None = None,
-         notice_text: str = "") -> dict:
+         notice_text: str = "", target: str = "") -> dict:
     """담당자의 말 한 마디를 받아 초안을 고친다.
 
     반환: {reply, sections, changed, unresolved}
@@ -177,7 +177,13 @@ def chat(notice: Notice, profile: CompanyProfile, sections: list[dict],
         return {"reply": "AI가 설정되지 않아 대화로 고칠 수 없습니다.",
                 "sections": sections, "changed": [], "unresolved": []}
 
-    route = _route(message, sections, notice, history)
+    if target:
+        # 화면에서 항목을 골랐으면 무엇을 고칠지 되물을 이유가 없다. 라우팅 호출을
+        # 건너뛰면 LLM 왕복이 하나 줄고, "어느 항목을 고칠지 찾지 못했습니다"라는
+        # 실패 경로가 통째로 사라진다. 고르지 않았을 때는 지금까지처럼 말로 찾는다.
+        route = {"intent": "수정", "targets": [target], "instruction": message}
+    else:
+        route = _route(message, sections, notice, history)
     if route.get("intent") != "수정":
         answer = (route.get("answer") or "").strip()
         return {"reply": answer or "어느 항목을 어떻게 고칠지 말씀해 주세요.",

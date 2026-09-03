@@ -107,17 +107,29 @@ function noticeCard(item) {
     </div>
     <span class="badge ${verdict}">${verdict}</span>`;
 
+  // 공고를 고르는 것이 이 화면의 유일한 동작인데 div 에 click 만 달려 있어서
+  // 키보드로는 아무 공고도 열 수 없었다. 마우스 없이도 목록을 훑을 수 있어야 한다.
+  card.tabIndex = 0;
+  card.setAttribute("role", "button");
   card.addEventListener("click", () => openNotice(item));
+  card.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();          // Space 가 페이지를 스크롤하지 않게
+    openNotice(item);
+  });
   return card;
 }
 
 // 현재 화면의 필터. 목록 조회와 '전체 판정'이 **같은 대상**을 보도록 한곳에서 만든다.
 function currentFilter() {
   const f = {};
+  const q = $("f-q").value.trim();
+  if (q) f.q = q;
   const region = $("f-region").value.trim();
   if (region) f.region = region;
   if ($("f-within").value) f.within = $("f-within").value;
   if ($("f-verdict").value) f.verdict = $("f-verdict").value;
+  if ($("f-sort").value) f.sort = $("f-sort").value;
   return f;
 }
 
@@ -137,7 +149,8 @@ function renderTally(data) {
   // 한 건에 3.3초라 전건(수백 건)은 수십 분이 걸린다. 그래서 자동으로는 화면 맨
   // 위 AUTO_JUDGE 건만 채우고, 나머지는 '목록 전체 판정' 버튼에 맡긴다.
   // 같은 목록에서 두 번 돌지 않도록 필터 조합을 키로 기억한다.
-  const key = JSON.stringify(currentFilter());
+  const { sort, ...narrowing } = currentFilter();   // 정렬은 대상을 바꾸지 않는다
+  const key = JSON.stringify(narrowing);
   if (left > 0 && !judging && autoKey !== key) {
     autoKey = key;
     judgeAll(AUTO_JUDGE);
@@ -176,21 +189,51 @@ function renderRecommended(picks) {
   });
 }
 
+const PAGE = 50;                 // 한 번에 그리는 카드 수
+
+/* 682건을 한 번에 그리면 문서가 62,550px(87 화면)이 되고, 카드가 포커스를 받게 된
+   뒤로는 목록을 지나 다음 컨트롤로 가는 데만 탭을 682번 눌러야 한다. 처음에는 50장만
+   그리고 나머지는 눌러서 잇는다. 데이터는 이미 받아 놓았으므로 요청은 더 없다. */
+function renderCards(list, items) {
+  let shown = 0;
+  const more = document.createElement("button");
+  const draw = () => {
+    items.slice(shown, shown + PAGE)
+         .forEach((it) => list.insertBefore(noticeCard(it), more));
+    shown = Math.min(shown + PAGE, items.length);
+    more.textContent = `공고 ${items.length - shown}건 더 보기`;
+    more.hidden = shown >= items.length;
+  };
+  more.addEventListener("click", draw);
+  list.appendChild(more);
+  draw();
+}
+
+/* 검색어를 치면 250ms 간격으로 요청이 나가는데 682건 응답이 그보다 오래 걸리면
+   요청이 겹친다. await 전에 목록을 비우던 탓에 늦게 온 옛 응답이 새 응답 뒤에
+   덧그려져 같은 카드가 여러 벌 쌓였다 (19건이 57건으로 보였다).
+   마지막으로 보낸 요청의 응답만 그린다. 비우는 것도 응답이 온 뒤로 미뤄
+   기다리는 동안 목록이 깜빡이지 않게 한다. */
+let loadSeq = 0;
+
 async function loadNotices() {
+  const seq = ++loadSeq;
   const params = new URLSearchParams(currentFilter());
   const list = $("notice-list");
-  list.innerHTML = "";
   try {
     const data = await api("/api/notices?" + params.toString());
+    if (seq !== loadSeq) return;          // 더 새 요청이 이미 떠났다
+    list.innerHTML = "";
     renderTally(data);
     renderRecommended(data.recommended);
     if (!data.items.length) {
       list.innerHTML = `<p class="empty">조건에 맞는 공고가 없습니다.
-        ‘공고 새로 수집’을 눌러보세요.</p>`;
+        검색어나 필터를 지워 보세요.</p>`;
       return;
     }
-    data.items.forEach((item) => list.appendChild(noticeCard(item)));
+    renderCards(list, data.items);
   } catch (e) {
+    if (seq !== loadSeq) return;
     list.innerHTML = `<p class="empty">${escapeHtml(e.message)}</p>`;
   }
 }
@@ -264,9 +307,9 @@ $("btn-ingest").addEventListener("click", async () => {
   }
 });
 
-["f-region", "f-within", "f-verdict"].forEach((id) => {
+["f-q", "f-region", "f-within", "f-verdict", "f-sort"].forEach((id) => {
   const el = $(id);
-  el.addEventListener(id === "f-region" ? "input" : "change", () => {
+  el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => {
     clearTimeout(el._timer);
     el._timer = setTimeout(loadNotices, 250);   // 타이핑마다 요청하지 않도록
   });
@@ -450,6 +493,7 @@ function renderDraft(draft) {
     ? `서식에서 값만 채우면 되는 칸: ` +
       fields.map((f) => `<span class="chip">${escapeHtml(f)}</span>`).join(" ")
     : "";
+  fillChatTargets(draft.sections);
   $("d-sections").innerHTML = draft.sections.map((s, i) => `
     <div class="section">
       <h4>${escapeHtml(s.title)}</h4>
@@ -457,6 +501,17 @@ function renderDraft(draft) {
         ? "참고: " + escapeHtml(s.sources.join(", ")) : "참고한 과거 신청서 없음"}</div>
       <textarea data-index="${i}">${escapeHtml(s.body)}</textarea>
     </div>`).join("");
+}
+
+/* 고칠 항목 목록을 실제 초안에 맞춘다. 항목 이름은 공고 서식에서 오므로
+   공고마다 다르다 — 고정 목록을 둘 수 없다. */
+function fillChatTargets(sections) {
+  const sel = $("chat-target");
+  const keep = sel.value;
+  sel.innerHTML = `<option value="">자동 — 말한 내용으로 판단</option>
+    <option value="*">전체 항목</option>` +
+    sections.map((s) => `<option>${escapeHtml(s.title)}</option>`).join("");
+  sel.value = [...sel.options].some((o) => o.value === keep) ? keep : "";
 }
 
 // 담당자가 화면에서 고친 내용을 그대로 모아 점검·복사에 쓴다.
@@ -601,6 +656,7 @@ async function sendChat() {
   try {
     const result = await post(noticeUrl(current.id, "chat"), {
       message,
+      target: $("chat-target").value,
       sections: collectDraft().sections,
       history: chatHistory.slice(-6),
     });
@@ -622,6 +678,34 @@ async function sendChat() {
     input.focus();
   }
 }
+
+/* 손으로 고친 글을 저장한다.
+
+   지금까지 초안이 저장되는 경로는 대화(chat)뿐이었다. textarea 에 직접 친 글은
+   collectDraft() 로 모아 점검·복사에만 쓰였고 어디에도 남지 않아서, 탭을 옮기거나
+   새로고침하면 사라졌다. 명시적인 저장 버튼을 두면 누르는 걸 잊으므로 친 뒤
+   잠깐 멈추면 알아서 보낸다. */
+let saveTimer = null;
+
+function saveDraftSoon() {
+  if (!current) return;
+  clearTimeout(saveTimer);
+  $("d-saved").textContent = "…";
+  saveTimer = setTimeout(async () => {
+    try {
+      await post(noticeUrl(current.id, "save"), { sections: collectDraft().sections });
+      currentDraft = collectDraft();     // 화면과 기억을 같은 글로 맞춘다
+      $("d-saved").textContent = "저장됨";
+    } catch (e) {
+      $("d-saved").textContent = "저장 실패 — " + e.message;
+    }
+  }, 900);
+}
+
+// 항목은 초안을 그릴 때마다 새로 만들어지므로 컨테이너에 한 번만 건다.
+$("d-sections").addEventListener("input", (e) => {
+  if (e.target.tagName === "TEXTAREA") saveDraftSoon();
+});
 
 // 어느 항목이 바뀌었는지 눈으로 알 수 있게 잠깐 테두리를 준다. 항목이 여럿이면
 // 화면 어디가 달라졌는지 글만 봐서는 찾기 어렵다.
@@ -650,6 +734,20 @@ $("chat-text").addEventListener("keydown", (e) => {
 // ─────────────────────────────────────────────────────── 회사 프로필
 
 // [키, 라벨, 종류]. 자격 판정이 실제로 쓰는 항목만 노출한다.
+/* 자격 판정이 실제로 읽는 값. agent/eligibility.py 의 _judge_region(p.region,
+   p.region_detail) · _judge_years(p.founded) · _judge_size(p.employees,
+   p.revenue_krw) · _judge_industry(p.industry) 와 1:1이다. 이 중 하나라도
+   비어 있으면 그 축은 판정이 안 되고 '확인필요'로 밀린다. */
+const JUDGE_FIELDS = ["region", "region_detail", "founded",
+                      "employees", "revenue_krw", "industry"];
+
+function profileGaps(p) {
+  return JUDGE_FIELDS.filter((k) => {
+    const v = p[k];
+    return v === "" || v === null || v === undefined || v === 0;
+  });
+}
+
 const PROFILE_FIELDS = [
   ["name", "회사명", "text"], ["ceo", "대표자", "text"],
   ["biz_no", "사업자등록번호", "text"],
@@ -694,7 +792,9 @@ function renderProfile(p) {
         <div id="p-${key}" class="pairs"></div>
         <button type="button" class="ghost" id="p-${key}-add">+ 항목 추가</button></div>`;
     }
-    return `<div class="field"><label for="p-${key}">${label}</label>
+    // 어느 값이 판정을 좌우하는지 폼 위에서 바로 보이게 한다.
+    const must = JUDGE_FIELDS.includes(key) ? ` <span class="chip">판정 필수</span>` : "";
+    return `<div class="field"><label for="p-${key}">${label}${must}</label>
       <input type="${kind}" id="p-${key}" value="${escapeHtml(value ?? "")}"></div>`;
   }).join("");
 
@@ -737,9 +837,28 @@ function pairRow(name, value) {
   return row;
 }
 
+/* 안내 상자를 지금 상태에 맞춘다. 채워야 할 게 남았으면 무엇이 왜 필요한지
+   적고, 다 찼으면 상자를 감춘다. 돌려주는 값은 '아직 비었는가'다. */
+function renderOnboard(p) {
+  const labels = Object.fromEntries(PROFILE_FIELDS.map(([k, l]) => [k, l]));
+  const gaps = profileGaps(p);
+  $("profile-onboard").hidden = !gaps.length;
+  if (gaps.length) {
+    $("onboard-why").innerHTML =
+      // 라벨의 형식 안내 괄호("설립일 (YYYY-MM-DD)")는 문장 안에서 읽기 나쁘다.
+      `자격 판정은 <b>${gaps.map((k) => escapeHtml((labels[k] || k).replace(/\s*\(.*\)/, ""))).join("</b>, <b>")}</b>`
+      + ` 값을 보고 합니다. 비어 있으면 그 요건은 판정하지 못하고 ‘확인필요’로 남습니다.`;
+  }
+  return gaps.length > 0;
+}
+
 async function loadProfile() {
   try {
-    renderProfile(await api("/api/profile"));
+    const p = await api("/api/profile");
+    renderProfile(p);
+    // 판정에 쓸 값이 없는 채로 공고함을 열면 682건이 전부 '확인필요'로만 나온다.
+    // 그 화면은 도구가 뭘 하는지 보여주지 못하므로, 처음에는 여기부터 보인다.
+    if (renderOnboard(p)) showTab("profile");
   } catch (e) {
     $("profile-form").innerHTML = `<p class="empty">${escapeHtml(e.message)}</p>`;
   }
@@ -765,11 +884,16 @@ $("btn-save-profile").addEventListener("click", async () => {
     } else payload[key] = el.value;
   });
   try {
-    renderProfile(await post("/api/profile", payload));
+    const saved = await post("/api/profile", payload);
+    const wasIncomplete = !$("profile-onboard").hidden;
+    renderProfile(saved);
+    const stillIncomplete = renderOnboard(saved);
     $("profile-saved").textContent =
       "저장했습니다. 프로필이 바뀌었으므로 판정을 다시 계산합니다.";
     autoKey = null;
     await loadNotices();
+    // 처음 채운 사람은 여기서 멈추면 다음에 뭘 할지 모른다. 공고함으로 넘긴다.
+    if (wasIncomplete && !stillIncomplete) showTab("inbox");
   } catch (e) {
     $("profile-saved").textContent = "저장 실패 — " + e.message;
   }
@@ -813,6 +937,14 @@ async function loadPastList() {
     $("past-list").innerHTML = `<li class="none">${escapeHtml(e.message)}</li>`;
   }
 }
+
+// 인풋을 감췄으니 무엇을 골랐는지는 직접 알려 줘야 한다.
+$("past-file").addEventListener("change", () => {
+  const picked = [...($("past-file").files || [])];
+  $("past-log").textContent = !picked.length ? ""
+    : picked.length === 1 ? picked[0].name : `${picked.length}개 선택됨`;
+  $("btn-upload-past").disabled = !picked.length;
+});
 
 $("btn-upload-past").addEventListener("click", async () => {
   const files = [...($("past-file").files || [])];
