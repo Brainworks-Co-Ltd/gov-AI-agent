@@ -529,6 +529,7 @@ async function openNotice(item) {
 
   $("v-rows").innerHTML = `<tr>` + [4,3,4].map((n,i)=>`<td>` + `<span class="sk w80"></span>`.repeat(1) + (i===2 ? `<span class="sk w60"></span>` : ``) + `</td>`).join("") + `<td><span class="sk"></span><span class="sk w40"></span></td></tr>`;
   $("v-overall").textContent = "";
+  $("v-dates").innerHTML = "";
   setNote("v-note", "");
   renderOverview(item);
   renderFiles($("v-files"), item.attachments, false);
@@ -557,6 +558,16 @@ function renderOverview(item) {
     : `<dd class="none">공고문에 요약 정보가 없습니다. 원문 공고를 확인하세요.</dd>`;
 }
 
+/* "2026-09-09" → " (수)". 파싱이 안 되는 값이면 아무것도 안 붙인다 — 공고
+   날짜는 형식이 제각각이라 틀린 요일을 붙이느니 없는 편이 낫다. */
+function weekday(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((iso || "").trim());
+  if (!m) return "";
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  if (d.getMonth() !== +m[2] - 1) return "";
+  return " (" + "일월화수목금토"[d.getDay()] + ")";
+}
+
 async function loadEligibility(refresh) {
   try {
     const report = await api(noticeUrl(current.id, "eligibility") +
@@ -576,6 +587,13 @@ async function loadEligibility(refresh) {
       ? `<svg class="i" aria-hidden="true"><use href="#i-calendar-clock"/></svg>` +
         `<span>${escapeHtml(sd.label)}</span>`
       : "";
+    // 실무자는 'D-5'만 보면 오늘이 며칠인지 되짚어야 한다. 남은 날짜 옆에
+    // 마감일 자체를 놓아 그 되짚기를 없앤다. 요일까지 있어야 주말을 안 센다.
+    $("v-dates").innerHTML = sd.end
+      ? `마감 <b>${escapeHtml(sd.end)}${weekday(sd.end)}</b>` +
+        `<small>접수 시작 ${escapeHtml(sd.begin || "미상")}` +
+        (sd.today ? ` · 오늘 ${escapeHtml(sd.today)}` : "") + `</small>`
+      : "";
     setNote("v-note", report.note);
 
     $("v-rows").innerHTML = report.rows.length
@@ -593,14 +611,6 @@ async function loadEligibility(refresh) {
           `원문 공고를 직접 확인하세요.</span></p></td></tr>`;
 
     loadChecklist(report.docs_source);
-
-    // 남은 기간은 위 요약으로 올렸다. 여기는 날짜 사실만 둔다 —
-    // 같은 값을 두 번 크게 쓰면 어느 쪽을 봐야 하는지 흐려진다.
-    const s = report.schedule;
-    $("v-sched").innerHTML =
-      `<dt>접수 시작</dt><dd>${escapeHtml(s.begin || "미상")}</dd>` +
-      `<dt>접수 마감</dt><dd><b>${escapeHtml(s.end || "미상")}</b></dd>` +
-      (s.today ? `<dd class="foot">오늘 ${escapeHtml(s.today)} 기준</dd>` : "");
   } catch (e) {
     $("v-rows").innerHTML =
       `<tr><td colspan="4">판정 실패 — ${escapeHtml(e.message)}</td></tr>`;

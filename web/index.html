@@ -163,12 +163,12 @@
     <div id="verdict-empty" class="empty">공고함에서 공고를 선택하세요.</div>
     <div id="verdict-body" hidden>
       <div class="notice-head">
-        <h2 id="v-title"></h2>
+        <h2><span id="v-overall" class="badge"></span><span id="v-title"></span></h2>
         <p id="v-meta" class="meta"></p>
       </div>
       <div class="verdict-summary">
-        <span id="v-overall" class="badge"></span>
         <span id="v-schedule" class="dday"></span>
+        <p id="v-dates" class="dates"></p>
         <button id="btn-rejudge"><svg class="i" aria-hidden="true"><use href="#i-rotate-cw"/></svg>다시 판정</button>
         <button id="btn-to-draft" class="primary"><svg class="i" aria-hidden="true"><use href="#i-file-pen"/></svg>이 공고로 초안 만들기</button>
       </div>
@@ -197,10 +197,6 @@
             <h3>제출서류 <span id="v-docs-progress" class="count"></span></h3>
             <p id="v-docs-note" class="log" hidden></p>
             <div id="v-checklist" class="checklist"></div>
-          </div>
-          <div class="box">
-            <h3>신청 일정</h3>
-            <dl id="v-sched" class="facts"></dl>
           </div>
           <div class="box">
             <h3>공고 첨부</h3>
