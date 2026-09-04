@@ -314,6 +314,8 @@ let observedRefresh = false;
 function setRefreshButtons(running) {
   $("btn-ingest").disabled = running;
   $("btn-judge-all").disabled = running;
+  // 시작하면 못 멈추는 30분짜리 일이었다. 도는 동안에만 중지를 내놓는다.
+  $("btn-refresh-stop").hidden = !running;
 }
 
 /* 오래 걸리는 일이 끝났을 때만 부른다. 진행 상황은 #ingest-log 가 계속 맡는다 —
@@ -352,6 +354,11 @@ function refreshMessage(status) {
     return "갱신 실패 — " + ((status.errors || [])[0] || "원인을 확인하지 못했습니다.");
   }
   if (status.state === "succeeded") {
+    // 중간에 멈춘 것을 '완료'로 적으면 남은 건수가 없어진 것처럼 읽힌다.
+    if (status.stopped) {
+      return `중지했습니다 — 새로 ${status.refreshed || 0}건까지 판정했습니다.` +
+        " 다시 누르면 남은 것부터 이어서 돕니다.";
+    }
     const summary = `갱신 완료 — 새로 ${status.refreshed || 0}건 · ` +
       `기존 ${status.cached || 0}건` +
       (status.failed ? ` · 실패 ${status.failed}건` : "");
@@ -381,6 +388,9 @@ async function pollRefresh() {
       // 긴 요약은 화면에 남기고, 토스트에는 결과 한 줄만 띄운다.
       if (status.state === "failed") {
         toast("갱신 실패 — " + ((status.errors || [])[0] || "원인을 확인하지 못했습니다."), false);
+      } else if (status.stopped) {
+        toast(`중지했습니다 — 새로 ${status.refreshed || 0}건까지 판정했습니다.`
+              + " 다시 누르면 남은 것부터 이어서 돕니다.");
       } else {
         toast(`갱신 완료 — 새로 ${status.refreshed || 0}건 · 기존 ${status.cached || 0}건`
               + (status.failed ? ` · 실패 ${status.failed}건` : ""));
@@ -423,6 +433,9 @@ async function startRefresh(path) {
     $("ingest-log").textContent = status.started
       ? "갱신 작업을 시작했습니다. 현재 목록은 저장된 결과로 계속 볼 수 있습니다."
       : "이미 갱신 작업이 진행 중입니다.";
+    toast(status.started
+      ? "갱신을 시작했습니다. 끝나면 알려 드립니다."
+      : "이미 갱신이 진행 중입니다.");
     await pollRefresh();
   } catch (e) {
     setRefreshButtons(false);
@@ -431,7 +444,31 @@ async function startRefresh(path) {
   }
 }
 
-$("btn-judge-all").addEventListener("click", () => startRefresh("/api/judge"));
+$("btn-judge-all").addEventListener("click", () => {
+  const left = Number($("inbox-tally").dataset.left || 0);
+  if (!left) { toast("판정할 공고가 없습니다. 모두 판정돼 있습니다."); return; }
+  const mins = Math.max(1, Math.round((left * 3.3) / 60));
+  const ok = window.confirm(
+    `판정이 없는 ${left}건을 판정합니다.\n\n` +
+    `· 한 건에 3초 남짓 걸려 약 ${mins}분 예상입니다\n` +
+    "· 도는 동안에도 저장된 목록은 계속 볼 수 있고, 언제든 중지할 수 있습니다\n" +
+    "· 이미 판정된 공고는 건너뜁니다\n\n" +
+    "계속할까요?");
+  if (ok) startRefresh("/api/judge");
+});
+
+$("btn-refresh-stop").addEventListener("click", async () => {
+  $("btn-refresh-stop").disabled = true;
+  try {
+    await post("/api/refresh/stop", {});
+    // 판정 한 건이 끝나는 대로 멈추므로 곧바로 idle 이 되지는 않는다.
+    $("ingest-log").textContent = "중지를 요청했습니다. 진행 중인 한 건을 마치고 멈춥니다…";
+  } catch (e) {
+    toast("중지 요청 실패 — " + e.message, false);
+  } finally {
+    $("btn-refresh-stop").disabled = false;
+  }
+});
 /* '공고 새로 수집'은 두 기관 API를 다시 부르고, 받아온 결과로 오프라인 캐시를
    덮어쓴 뒤, 판정이 없는 공고를 전부 다시 판정한다. 한 건에 3초가 넘어 수백 건이면
    30분대다. 눌러 놓고 기다리는 일이라 무엇이 일어나는지 먼저 알려준다.

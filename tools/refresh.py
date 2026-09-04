@@ -32,7 +32,8 @@ def _ignore_progress(update: dict[str, Any]) -> None:
 def run(*, collect_first: bool = False, use_llm: bool = True,
         offline: bool = False, profile: CompanyProfile | None = None,
         evaluate: Evaluator | None = None,
-        progress: Progress | None = None) -> dict[str, Any]:
+        progress: Progress | None = None,
+        should_stop: Callable[[], bool] | None = None) -> dict[str, Any]:
     """공식 API를 선택적으로 수집하고, 유효하지 않은 판정만 다시 계산한다."""
     notify = progress or _ignore_progress
     ingest_result = None
@@ -56,9 +57,15 @@ def run(*, collect_first: bool = False, use_llm: bool = True,
 
         total = len(notices)
         refreshed = 0
+        stopped = False
         notify({"phase": "judging", "total": total, "done": cached,
                 "cached": cached, "refreshed": 0, "failed": 0})
         for notice in stale:
+            # 한 건이 끝날 때마다 중단 요청을 본다. 판정 하나는 3초대라 누른 뒤
+            # 그 안에 멈춘다. 이미 끝난 판정은 저장돼 있어 다시 눌러도 이어서 돈다.
+            if should_stop is not None and should_stop():
+                stopped = True
+                break
             try:
                 evaluator(conn, notice, selected_profile)
                 refreshed += 1
@@ -77,6 +84,7 @@ def run(*, collect_first: bool = False, use_llm: bool = True,
         "failed": len(errors),
         "errors": errors,
         "ingest": ingest_result,
+        "stopped": stopped,
     }
 
 
@@ -86,6 +94,8 @@ class RefreshCoordinator:
     def __init__(self, runner: Callable[..., dict[str, Any]] = run):
         self._runner = runner
         self._lock = threading.Lock()
+        # 진행 중인 작업에 "그만"을 전하는 신호. 작업마다 새로 만든다.
+        self._stop = threading.Event()
         self._status: dict[str, Any] = {
             "state": "idle", "phase": "", "total": 0, "done": 0,
             "cached": 0, "refreshed": 0, "failed": 0, "errors": [],
@@ -101,10 +111,11 @@ class RefreshCoordinator:
         with self._lock:
             if self._status["state"] == "running":
                 return {"started": False, **copy.deepcopy(self._status)}
+            self._stop = threading.Event()
             self._status = {
                 "state": "running", "phase": "starting", "total": 0, "done": 0,
                 "cached": 0, "refreshed": 0, "failed": 0, "errors": [],
-                "started_at": _now(), "finished_at": None,
+                "stopped": False, "started_at": _now(), "finished_at": None,
             }
             response = {"started": True, **copy.deepcopy(self._status)}
 
@@ -113,6 +124,14 @@ class RefreshCoordinator:
         thread.start()
         return response
 
+    def stop(self) -> dict[str, Any]:
+        """진행 중인 작업에 중단을 요청한다. 판정 한 건이 끝나는 대로 멈춘다."""
+        with self._lock:
+            running = self._status["state"] == "running"
+            if running:
+                self._stop.set()
+            return {"stopping": running, **copy.deepcopy(self._status)}
+
     def _progress(self, update: dict[str, Any]) -> None:
         with self._lock:
             if self._status["state"] == "running":
@@ -120,7 +139,8 @@ class RefreshCoordinator:
 
     def _run(self, options: dict[str, Any]) -> None:
         try:
-            result = self._runner(progress=self._progress, **options)
+            result = self._runner(progress=self._progress,
+                                  should_stop=self._stop.is_set, **options)
         except Exception as exc:
             with self._lock:
                 self._status.update({
@@ -131,8 +151,10 @@ class RefreshCoordinator:
 
         with self._lock:
             self._status.update(result)
+            # 중간에 멈춘 것을 '완료'로 알리면 남은 건수가 사라진 것처럼 보인다.
             self._status.update({"state": "succeeded", "phase": "",
-                                 "done": result.get("total", 0),
+                                 "done": (result.get("cached", 0) + result.get("refreshed", 0)
+                                          if result.get("stopped") else result.get("total", 0)),
                                  "finished_at": _now()})
 
 

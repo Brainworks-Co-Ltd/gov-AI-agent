@@ -298,6 +298,11 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": ok, "items": past_store.listing()})
                 return
 
+            if path == "/api/refresh/stop":
+                # 진행 중인 갱신을 멈춘다. 이미 끝난 판정은 저장돼 있어,
+                # 다시 시작하면 남은 것부터 이어서 돈다.
+                self._json(_REFRESH.stop())
+                return
             if path == "/api/judge":
                 self._json(_REFRESH.start(collect_first=False), 202)
                 return
