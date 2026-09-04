@@ -176,6 +176,11 @@ class Handler(BaseHTTPRequestHandler):
                     refresh = (not READONLY) and query.get("refresh", ["0"])[0] == "1"
                     report = orchestrator.eligibility_of(conn, notice, refresh=refresh)
                     data = report.to_dict()
+                    if READONLY:
+                        # 이 알림은 '다시 판정을 눌러 보라'고 안내하는데 공개
+                        # 링크에서는 그 버튼이 꺼져 있다. 못 하는 일을 시키는
+                        # 문장이라 내보내지 않는다.
+                        data["note"] = ""
                     # 제출서류 목록은 오픈API 응답에 사실상 없고 첨부(공고문·서식) 안에
                     # 있다. 그 추출은 파일을 내려받아 여는 비싼 작업이라 판정 자체에는
                     # 넣지 않는다(공고함 일괄 판정이 느려진다). 담당자가 공고 하나를
