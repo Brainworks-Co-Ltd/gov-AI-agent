@@ -71,10 +71,19 @@ function renderFiles(el, attachments, onlyForms) {
 }
 
 function showTab(name) {
-  document.querySelectorAll(".tab").forEach((b) =>
-    b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll(".tab").forEach((b) => {
+    const on = b.dataset.tab === name;
+    b.classList.toggle("active", on);
+    // 활성 표시가 배경색뿐이면 보조기기에는 아무 일도 일어나지 않는다.
+    b.setAttribute("aria-current", on ? "page" : "false");
+  });
   document.querySelectorAll(".panel").forEach((p) =>
     p.classList.toggle("active", p.id === "tab-" + name));
+  // 빈 초안 화면의 버튼은 지금 붙들고 있는 공고가 있느냐로 갈린다.
+  if (name === "draft") {
+    $("btn-draft-go").textContent =
+      current ? "이 공고로 초안 만들기" : "공고함에서 공고 고르기";
+  }
 }
 
 document.querySelectorAll(".tab").forEach((btn) =>
@@ -613,10 +622,10 @@ async function loadEligibility(refresh) {
       ? report.rows.map((r) => `
           <tr>
             <td><strong>${escapeHtml(r.axis)}</strong><br>${escapeHtml(r.value)}</td>
-            <td>${escapeHtml(r.company_value)}</td>
+            <td data-label="우리 회사">${escapeHtml(r.company_value)}</td>
             <td><span class="badge ${r.verdict}">${r.verdict}</span>
                 <div class="reason">${escapeHtml(r.reason)}</div></td>
-            <td><div class="quote">“${escapeHtml(r.quote)}”</div></td>
+            <td data-label="근거"><div class="quote">“${escapeHtml(r.quote)}”</div></td>
           </tr>`).join("")
       : `<tr><td colspan="4"><p class="log warn">` +
           `<svg class="i" aria-hidden="true"><use href="#i-circle-alert"/></svg>` +
@@ -718,6 +727,9 @@ $("btn-rejudge").addEventListener("click", async () => {
 
 $("btn-to-draft").addEventListener("click", () => openDraft(false));
 
+$("btn-draft-go").addEventListener("click",
+  () => (current ? openDraft(false) : showTab("inbox")));
+
 // ───────────────────────────────────────────────────── ③ 초안 · 점검
 
 function renderDraft(draft) {
@@ -740,7 +752,8 @@ function renderDraft(draft) {
       <h4>${escapeHtml(s.title)}</h4>
       <div class="src">${s.sources && s.sources.length
         ? "참고: " + escapeHtml(s.sources.join(", ")) : "참고한 과거 신청서 없음"}</div>
-      <textarea data-index="${i}">${escapeHtml(s.body)}</textarea>
+      <textarea data-index="${i}" aria-label="${escapeHtml(s.title)} 본문"
+                >${escapeHtml(s.body)}</textarea>
     </div>`).join("");
 }
 

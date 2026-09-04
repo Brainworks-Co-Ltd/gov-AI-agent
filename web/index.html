@@ -90,7 +90,8 @@
                 aria-pressed="false">북마크만 보기 0</button>
       </div>
       <div>
-        <input id="f-q" type="search" placeholder="공고 검색 (예: 광주 제조)">
+        <input id="f-q" type="search" aria-label="공고 검색"
+               placeholder="공고 검색 (예: 광주 제조)">
         <label>지역
         <select id="f-region">
           <option value="">전체</option>
@@ -209,7 +210,10 @@
 
   <!-- ────────────────────────────────── ③ 초안과 점검 ────────────────────────────────── -->
   <section id="tab-draft" class="panel">
-    <div id="draft-empty" class="empty">자격 판정 탭에서 초안 만들기를 누르세요.</div>
+    <div id="draft-empty" class="empty">
+      아직 만든 초안이 없습니다.
+      <p><button id="btn-draft-go" class="primary">공고함에서 공고 고르기</button></p>
+    </div>
     <div id="draft-body" hidden>
       <div class="notice-head">
         <h2 id="d-title"></h2>
@@ -231,7 +235,7 @@
           첨부에서 서식을 못 읽었거나 항목이 실제 양식과 다르면 여기서 고치세요.
           한 줄에 항목 하나씩 적으면, 그 항목에 맞춰 초안을 다시 씁니다.
         </p>
-        <textarea id="section-list" rows="7"></textarea>
+        <textarea id="section-list" rows="7" aria-label="작성 항목 목록"></textarea>
         <div class="toolbar">
           <button id="btn-apply-sections" class="primary">이 항목으로 다시 쓰기</button>
           <button id="btn-cancel-sections">취소</button>
@@ -270,7 +274,7 @@
               </select>
             </label>
             <div class="chat-input">
-              <textarea id="chat-text" rows="2"
+              <textarea id="chat-text" rows="2" aria-label="어떻게 고칠지"
                         placeholder="예) 기대효과를 측정 가능한 목표 중심으로 고쳐 줘"></textarea>
               <button id="btn-chat-send" class="primary"><svg class="i" aria-hidden="true"><use href="#i-sparkles"/></svg>고쳐 쓰기</button>
             </div>
