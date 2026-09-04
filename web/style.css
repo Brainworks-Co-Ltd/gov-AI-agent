@@ -89,6 +89,11 @@ body {
 
 /* ═══════════════════════════════════════════════════ ② 프리미티브 */
 
+/* 아이콘 스프라이트는 화면에 나오지 않아야 한다. HTML 의 hidden 속성은 SVG 요소에
+   먹지 않아 display:inline 으로 남고, 그 자리에서 150px 를 차지해 본문 전체가
+   아래로 밀렸다. 명시적으로 감춘다. */
+svg[hidden] { display: none; }
+
 /* 아이콘. index.html 상단 스프라이트의 <symbol> 을 <use> 로 부른다. 색은 글자색을
    따르고, 선 굵기는 Lucide 기본(2)이다. 글자 옆에 붙을 때 baseline 을 맞춘다. */
 .i {
@@ -282,7 +287,9 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
 
 /* .tab 은 app.js 가 data-tab / .active 로 다루는 셀렉터라 이름을 유지한다. */
 .steps .tab {
-  display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+  /* 폭이 100% 라 button 의 기본 가운데 정렬이 그대로 보인다. 메뉴는 왼쪽 정렬이다. */
+  display: flex; align-items: center; justify-content: flex-start;
+  gap: 11px; width: 100%; text-align: left;
   padding: 9px 10px; border: 1px solid transparent; border-radius: var(--radius-sm);
   background: none; box-shadow: none; cursor: pointer;
   font-size: 13px; font-weight: 500; color: var(--muted-foreground);
