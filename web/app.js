@@ -110,7 +110,7 @@ function setBookmarkButtonState(bookmark, saved) {
 
 function updateBookmarkFilterButton() {
   const button = $("btn-bookmarks");
-  button.innerHTML = `<svg class="i" aria-hidden="true"><use href="#i-bookmark"/></svg>북마크만 ${bookmarkStore.count()}`;
+  button.innerHTML = `<svg class="i" aria-hidden="true"><use href="#i-bookmark"/></svg>북마크만 보기 ${bookmarkStore.count()}`;
   button.setAttribute("aria-pressed", String(bookmarksOnly));
 }
 
@@ -432,7 +432,23 @@ async function startRefresh(path) {
 }
 
 $("btn-judge-all").addEventListener("click", () => startRefresh("/api/judge"));
-$("btn-ingest").addEventListener("click", () => startRefresh("/api/ingest"));
+/* '공고 새로 수집'은 두 기관 API를 다시 부르고, 받아온 결과로 오프라인 캐시를
+   덮어쓴 뒤, 판정이 없는 공고를 전부 다시 판정한다. 한 건에 3초가 넘어 수백 건이면
+   30분대다. 눌러 놓고 기다리는 일이라 무엇이 일어나는지 먼저 알려준다.
+   앱에 이미 쓰고 있는 confirm 을 그대로 쓴다 — 모달을 새로 만들면 초점 가두기와
+   Esc 처리를 직접 짜야 하는데, 그 값을 하는 자리가 아니다. */
+$("btn-ingest").addEventListener("click", () => {
+  const left = Number($("inbox-tally").dataset.left || 0);
+  const mins = Math.max(1, Math.round((left * 3.3) / 60));
+  const ok = window.confirm(
+    "공고를 새로 수집합니다.\n\n" +
+    "· 기업마당·K-Startup API를 다시 부릅니다\n" +
+    "· 받아온 결과로 오프라인 캐시를 덮어씁니다 (이전 것은 남지 않습니다)\n" +
+    `· 판정이 없는 ${left}건을 다시 판정합니다 — 약 ${mins}분\n\n` +
+    "진행하는 동안에도 저장된 목록은 계속 볼 수 있습니다." +
+    "\n계속할까요?");
+  if (ok) startRefresh("/api/ingest");
+});
 $("btn-bookmarks").addEventListener("click", () => {
   bookmarksOnly = !bookmarksOnly;
   updateBookmarkFilterButton();

@@ -79,13 +79,18 @@
       <h1>공고함</h1>
       <p class="sub">기업마당 · K-Startup 공고를 모아 중복을 없애고, 신청 가능 여부를 판정합니다.</p>
     </div>
+    <!-- 세 단이다. 위에서부터 데이터를 바꾸는 일 · 목록을 좁히는 일 ·
+         결과를 다루는 일. 하는 일이 달라 구분선으로 가른다. -->
     <div class="toolbar">
-      <button id="btn-ingest" class="primary"><svg class="i" aria-hidden="true"><use href="#i-refresh-cw"/></svg>공고 새로 수집</button>
-      <button id="btn-judge-all"><svg class="i" aria-hidden="true"><use href="#i-rotate-cw"/></svg>판정 결과 갱신</button>
-      <button id="btn-bookmarks" class="bookmark-filter" type="button"
-              aria-pressed="false">북마크만 0</button>
-      <input id="f-q" type="search" placeholder="공고 검색 (예: 광주 제조)" size="18">
-      <label>지역
+      <div>
+        <button id="btn-ingest" class="primary"><svg class="i" aria-hidden="true"><use href="#i-refresh-cw"/></svg>공고 새로 수집</button>
+        <button id="btn-judge-all"><svg class="i" aria-hidden="true"><use href="#i-rotate-cw"/></svg>판정 결과 갱신</button>
+        <button id="btn-bookmarks" class="bookmark-filter" type="button"
+                aria-pressed="false">북마크만 보기 0</button>
+      </div>
+      <div>
+        <input id="f-q" type="search" placeholder="공고 검색 (예: 광주 제조)">
+        <label>지역
         <select id="f-region">
           <option value="">전체</option>
           <option>전국</option>
@@ -124,15 +129,18 @@
           <option value="불가">불가</option>
         </select>
       </label>
-      <label>정렬
-        <select id="f-sort">
-          <option value="">마감 임박순</option>
-          <option value="far">마감 여유순</option>
-          <option value="recent">최근 공고순</option>
-          <option value="verdict">판정 순</option>
-        </select>
-      </label>
-      <span id="inbox-count" class="count"></span>
+      </div>
+      <div>
+        <label>정렬
+          <select id="f-sort">
+            <option value="">마감 임박순</option>
+            <option value="far">마감 여유순</option>
+            <option value="recent">최근 공고순</option>
+            <option value="verdict">판정 순</option>
+          </select>
+        </label>
+        <span id="inbox-count" class="count"></span>
+      </div>
     </div>
     <p id="inbox-tally" class="tally"></p>
     <p id="ingest-log" class="log"></p>
