@@ -107,9 +107,11 @@ def _route(message: str, sections: list[dict], notice: Notice,
     except Exception as e:
         # 라우팅이 실패하면 아무것도 고치지 않는다. 어느 항목인지 모르는 채로
         # 손대면 엉뚱한 항목이 통째로 바뀐다.
+        print(f"[알림] 수정 요청 라우팅 실패 — 초안을 그대로 둡니다. ({e})")
         return {"intent": "질문", "targets": [], "instruction": "",
-                "answer": f"요청을 이해하지 못했습니다. ({e}) 어느 항목을 어떻게 "
-                          f"고칠지 항목 이름과 함께 다시 말씀해 주세요."}
+                "answer": "요청을 처리하지 못했습니다. 초안은 그대로입니다. "
+                          "어느 항목을 어떻게 고칠지 항목 이름과 함께 "
+                          "다시 말씀해 주세요."}
 
 
 def _resolve_targets(targets: list, sections: list[dict]) -> list[int]:

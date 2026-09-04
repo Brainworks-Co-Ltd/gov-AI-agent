@@ -120,7 +120,9 @@ def parse(text: str) -> dict:
         print(f"[알림] 서식 분석 LLM 호출 실패 — 규칙 추출로 대체합니다. ({e})")
         write, fill = _rule_sections(text)
         return {"write_sections": write, "fill_fields": fill, "documents": [],
-                "note": f"AI 호출에 실패해 규칙으로 추렸습니다. ({e})"}
+                "note": ("AI를 부르지 못해 서식의 제목 줄만 규칙으로 추렸습니다. "
+                         "항목이 실제 서식과 다르면 ‘작성 항목 고치기’에서 "
+                         "바꿀 수 있습니다.")}
 
     def clean(values, limit) -> list[str]:
         out = []

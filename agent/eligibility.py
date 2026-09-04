@@ -262,7 +262,8 @@ def extract_requirements(text: str,
     except Exception as e:
         print(f"[알림] 요건 추출 LLM 호출 실패 — 규칙 추출로 대체합니다. ({e})")
         return (_fallback_requirements(fallback_text),
-                f"AI 호출에 실패해 규칙으로 추출했습니다. ({e})")
+                "AI를 부르지 못해 지원대상 문장에서 정형 표현만 규칙으로 "
+                "추출했습니다. 잠시 후 ‘다시 판정’을 누르면 다시 시도합니다.")
 
     kept: list[Requirement] = []
     dropped = 0

@@ -721,16 +721,20 @@ def generate(notice: Notice, profile: CompanyProfile,
                     print("[알림] 튜닝 모델 응답에서 항목을 찾지 못해 기본 모델로 넘어갑니다.")
             except Exception as e:
                 print(f"[알림] 튜닝 모델 호출 실패 — 기본 모델로 대체합니다. ({e})")
-                note = f"튜닝 모델 호출에 실패해 기본 모델로 작성했습니다. ({e})"
+                note = "튜닝 모델을 부르지 못해 기본 모델로 작성했습니다."
 
         if not raw_sections:
             raw_sections, failed = _generate_per_section(
                 titles, notice, profile, reference_blocks, notice_text)
             if failed and not raw_sections:
                 print(f"[알림] 초안 생성 LLM 호출 실패 — 뼈대 초안으로 대체합니다. ({failed})")
-                note = f"AI 호출에 실패해 뼈대 초안만 넣었습니다. ({failed})"
+                note = ("AI를 부르지 못해 뼈대 초안만 넣었습니다. 잠시 후 "
+                        "‘같은 항목으로 다시 쓰기’를 눌러 주세요.")
             elif failed:
-                note = f"일부 항목을 만들지 못했습니다. ({failed})"
+                print(f"[알림] 일부 항목 생성 실패 — 만들어진 항목만 넘깁니다. ({failed})")
+                note = ("일부 항목을 만들지 못했습니다. 지금 화면에 있는 항목은 그대로 "
+                        "쓰셔도 됩니다. 나머지가 필요하면 잠시 후 ‘같은 항목으로 다시 "
+                        "쓰기’를 눌러 주세요.")
     else:
         note = "AI가 설정되지 않아 뼈대 초안만 넣었습니다."
 
