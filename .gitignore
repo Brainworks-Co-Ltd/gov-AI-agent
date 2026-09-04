@@ -3,7 +3,11 @@
 clova_api_key.txt
 
 # 자동 생성물
-data/app.db
+# app.db 는 판정 결과를 담고 있어 배포본에 같이 나가야 한다 (커밋함).
+# 다만 WAL/SHM 은 절대 커밋하지 않는다 — 다른 기계에서 열면 손상으로 본다.
+data/app.db-wal
+data/app.db-shm
+data/app.db.bak-*
 __pycache__/
 *.pyc
 data/forms/

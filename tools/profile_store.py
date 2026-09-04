@@ -32,6 +32,12 @@ def save(profile: CompanyProfile) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+# 판정이 읽지 않는 항목. 초안을 쓸 때만 쓰인다(agent/eligibility.py 에 참조 0곳).
+# 지문에 넣어 두면 회사 강점 문구 한 글자만 고쳐도 판정 수백 건이 통째로 날아가,
+# LLM 을 30분씩 다시 부르게 된다.
+_DRAFT_ONLY = ("name", "ceo", "biz_no", "strengths", "tech_services", "extra")
+
+
 def hash_of(profile: CompanyProfile) -> str:
     """판정 캐시 무효화용 지문.
 
@@ -39,6 +45,7 @@ def hash_of(profile: CompanyProfile) -> str:
     캐시가 전부 날아가 LLM을 다시 부르게 된다. 업력 요건은 founded로 계산되므로
     founded가 해시에 들어 있으면 충분하다.
     """
-    data = {k: v for k, v in profile.to_dict().items() if k != "years"}
+    data = {k: v for k, v in profile.to_dict().items()
+            if k != "years" and k not in _DRAFT_ONLY}
     blob = json.dumps(data, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
