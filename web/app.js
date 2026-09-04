@@ -159,7 +159,7 @@ function noticeCard(item) {
         escapeHtml(item.agency || "소관기관 미상"),
         escapeHtml(item.support_field || "분야 미상"),
         "마감 " + escapeHtml(item.apply_end || "미상"),
-      ].join(", ")}</div>
+      ].join(" / ")}</div>
     </div>
     <span class="badge ${verdict}">${verdict}</span>`;
   open.addEventListener("click", () => openNotice(item));
@@ -527,9 +527,9 @@ async function openNotice(item) {
 
   $("v-meta").innerHTML =
     `소관기관 ${escapeHtml(item.agency || "미상")}` +
-    `, 자료 출처 <strong>${escapeHtml(item.sources.join(" + "))} 오픈API</strong>` +
+    ` / 자료 출처 <strong>${escapeHtml(item.sources.join(" + "))} 오픈API</strong>` +
     (item.merge_reason
-      ? `, 통합 근거: ${escapeHtml(item.merge_reason)}` : "") +
+      ? ` / 통합 근거: ${escapeHtml(item.merge_reason)}` : "") +
     `<br>${links}`;
 
   $("v-rows").innerHTML = `<tr>` + [4,3,4].map((n,i)=>`<td>` + `<span class="sk w80"></span>`.repeat(1) + (i===2 ? `<span class="sk w60"></span>` : ``) + `</td>`).join("") + `<td><span class="sk"></span><span class="sk w40"></span></td></tr>`;
@@ -597,7 +597,7 @@ async function loadEligibility(refresh) {
     $("v-dates").innerHTML = sd.end
       ? `마감 <b>${escapeHtml(sd.end)}${weekday(sd.end)}</b>` +
         `<small>접수 시작 ${escapeHtml(sd.begin || "미상")}` +
-        (sd.today ? `, 오늘 ${escapeHtml(sd.today)}` : "") + `</small>`
+        (sd.today ? ` / 오늘 ${escapeHtml(sd.today)}` : "") + `</small>`
       : "";
     setNote("v-note", report.note);
 
@@ -828,7 +828,7 @@ function renderIssues(issues) {
   }
   $("d-issues").innerHTML = issues.map((i) => `
     <div class="issue ${i.severity}">
-      <div class="where">[${escapeHtml(i.severity)}] ${escapeHtml(i.kind)}, ${escapeHtml(i.where)}</div>
+      <div class="where">[${escapeHtml(i.severity)}] ${escapeHtml(i.kind)} / ${escapeHtml(i.where)}</div>
       <div class="msg">${escapeHtml(i.message)}</div>
       ${i.suggestion ? `<div class="fix">→ ${escapeHtml(i.suggestion)}</div>` : ""}
     </div>`).join("");
