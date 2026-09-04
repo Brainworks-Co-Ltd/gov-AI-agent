@@ -724,10 +724,19 @@ button.ghost { background: transparent; color: var(--muted-foreground); font-siz
   }
   /* 레일 안에서 세로로 쌓이던 부속은 가로 막대에 들어갈 자리가 없다. */
   .rail-lab, .rail-ctx, .rail-foot { display: none; }
-  .steps { flex-direction: row; flex-wrap: wrap; padding: 0 12px 12px; }
-  .steps + .rail-lab + .steps { padding-top: 0; }
-  /* 세로 레일에서는 width:100% 로 꽉 채우지만 가로 막대에서는 그게 줄바꿈을 만든다. */
-  .steps .tab { width: auto; flex: 1 1 auto; justify-content: center; }
+  /* 라벨('기준 정보'/'진행 단계')이 사라지면 탭을 두 무리로 나눈 뜻도 사라진다.
+     그런데 무리는 남아 있어서 '회사 프로필'이 혼자 한 줄을 차지하고, 저 혼자
+     가운데 놓인 것처럼 보였다. display:contents 로 무리를 풀어 넷을 한 줄에
+     모은다 — 세로 레일에서는 나눔이 그대로 살아 있다. */
+  .rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+         align-items: center; gap: 6px; padding: 0 12px 12px; }
+  .rail-brand { grid-column: 1 / -1; padding: 16px 6px 10px; }
+  .rail .steps { display: contents; }
+
+  /* 세로 레일에서는 width:100% 로 꽉 채우지만 가로 막대에서는 그게 줄바꿈을 만든다.
+     칸 나눔은 레일의 격자가 맡는다 — flex-wrap 으로 하면 딱 셋이 들어가는 폭에서
+     남은 하나가 혼자 폭을 다 먹는다. 격자는 남는 칸을 늘리지 않는다. */
+  .steps .tab { width: auto; justify-content: center; }
   /* 활성 표시가 오른쪽 세로선이면 가로 막대에서 뜻이 안 통한다. 아래로 눕힌다. */
   .steps .tab.active {
     border-right: none; border-radius: var(--radius-sm);
