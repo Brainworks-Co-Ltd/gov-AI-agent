@@ -348,6 +348,28 @@ def _bounds(text: str) -> list[tuple[float, str]]:
     return [(float(m.group(1)), m.group(2)) for m in _BOUND_RE.finditer(text or "")]
 
 
+def _satisfies(actual: float, text: str) -> bool | None:
+    """요건 문장을 만족하는가. 쉼표로 나열된 것은 OR 로 본다.
+
+    기업마당 오픈API 의 biz_enyy 같은 필드는 검색 필터용 다중선택 값이라
+    '1년미만,2년미만,3년미만,5년미만,7년미만,10년미만' 처럼 선택지를 이어 붙여
+    준다. '이 중 아무거나'라는 뜻인데 한 조건으로 묶어 AND 로 보면 첫 항에서
+    걸려, 신청할 수 있는 공고가 '불가'가 된다 — 담당자가 기회를 놓치는 가장
+    비싼 방향의 오류다.
+
+    쉼표가 없는 진짜 범위('3년 초과 7년 이내')는 종전대로 AND 로 남는다.
+    """
+    조각 = [t for t in (text or "").split(",") if _bounds(t)]
+    if len(조각) < 2:
+        return _check_bounds(actual, _bounds(text))
+    결과 = [_check_bounds(actual, _bounds(t)) for t in 조각]
+    if any(r is True for r in 결과):
+        return True
+    if all(r is False for r in 결과):
+        return False
+    return None
+
+
 def _check_bounds(actual: float, bounds: list[tuple[float, str]]) -> bool | None:
     """실제 값이 모든 경계 조건을 만족하는가. 경계가 하나도 없으면 None(판정 불가)."""
     if not bounds:
@@ -370,7 +392,9 @@ def _judge_years(req: Requirement, p: CompanyProfile,
     if years is None:
         return VERDICT_CHECK, "설립일 미입력", "프로필에 설립일이 없어 업력을 계산할 수 없습니다."
     shown = f"업력 {years:.1f}년 (설립 {p.founded})"
-    ok = _check_bounds(years, _bounds(req.value) or _bounds(req.quote))
+    ok = _satisfies(years, req.value)
+    if ok is None:
+        ok = _satisfies(years, req.quote)
     if ok is None:
         return VERDICT_CHECK, shown, "요건 문장에서 기준 연수를 읽어내지 못했습니다."
     if ok:
@@ -435,7 +459,9 @@ def _judge_size(req: Requirement, p: CompanyProfile,
             return VERDICT_CHECK, "매출액 미입력", "프로필에 매출액이 없어 판단할 수 없습니다."
         billions = p.revenue_krw / 100_000_000
         shown = f"매출 {billions:.1f}억원"
-        ok = _check_bounds(billions, _bounds(req.value) or _bounds(req.quote))
+        ok = _satisfies(billions, req.value)
+        if ok is None:
+            ok = _satisfies(billions, req.quote)
         if ok is None:
             return VERDICT_CHECK, shown, "요건 문장에서 매출 기준을 읽어내지 못했습니다."
         return ((VERDICT_OK, shown, f"매출 {billions:.1f}억원이 '{req.value}' 조건을 충족합니다.")

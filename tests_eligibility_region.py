@@ -1,10 +1,12 @@
-"""지역 요건 판정·누락 검증 회귀 테스트.
+"""자격 요건 판정 회귀 테스트.
 
-두 가지를 본다.
+세 가지를 본다.
   ① 시·도 없이 시·군·구만 적힌 요건을 광주 기업이 보면 '불가'가 나오는가
      (_effective_axis 가 시·도만 보고 축을 '기타'로 낮추면 엉뚱한 답이 나갔다)
   ② 추출이 소재지 요건을 통째로 흘렸을 때 규칙이 그것을 알아채는가
      (_region_duty_sentences — LLM 을 부르지 않는 결정적 부분만 검사한다)
+  ③ 쉼표로 나열된 선택지를 하나의 범위로 묶어 '불가'로 만들지 않는가
+     (_satisfies — 기업마당 biz_enyy 가 이 모양으로 온다)
 
     python -X utf8 tests_eligibility_region.py
 """
@@ -60,9 +62,30 @@ def test_region_duty_sentences() -> None:
     assert not E._region_duty_sentences("본사를 두고 3년 이상 영업 중인 기업")
 
 
+def test_쉼표_나열은_OR로_본다() -> None:
+    """기업마당 biz_enyy 는 '신청 가능 업력' 선택지를 이어 붙여 준다.
+
+    '이 중 아무거나'라는 뜻인데 한 범위로 묶어 AND 로 보면 첫 항에서 걸려,
+    신청할 수 있는 공고가 '불가'가 된다. 저장된 판정 93행 중 14행이 이 오류였고
+    전부 '불가 → 가능' 방향이었다.
+    """
+    업력 = 2.3
+    # 선택지 목록 — 2.3년은 '3년미만'에 해당하므로 가능
+    assert E._satisfies(업력, "1년미만,2년미만,3년미만,5년미만,7년미만,10년미만") is True
+    assert E._satisfies(업력, "예비창업자, 1년 미만, 2년 미만, 3년 미만") is True
+    # 어느 선택지에도 안 맞으면 그대로 불가
+    assert E._satisfies(업력, "1년미만,2년미만") is False
+    # 쉼표가 없는 진짜 범위는 AND 그대로 — 2.3년은 '3년 초과'가 아니다
+    assert E._satisfies(업력, "3년 초과 7년 이내") is False
+    assert E._satisfies(업력, "창업 7년 이내") is True
+    # 읽어낼 경계가 없으면 판정 불가(None)이지 '불가'가 아니다
+    assert E._satisfies(업력, "중소기업") is None
+
+
 def demo() -> None:
     test_axis_not_downgraded_when_only_districts()
     test_region_duty_sentences()
+    test_쉼표_나열은_OR로_본다()
     print("모두 통과")
 
 
