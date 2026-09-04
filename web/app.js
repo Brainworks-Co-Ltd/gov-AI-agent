@@ -565,7 +565,17 @@ async function loadEligibility(refresh) {
     $("v-overall").className = "badge " + report.overall;
     $("ctx-badge").textContent = report.overall;
     $("ctx-badge").className = "badge " + report.overall;
-    $("v-schedule").textContent = report.schedule.label || "";
+    // 마감은 이 화면의 두 답 중 하나다(다른 하나는 판정). 맨 글씨로 두면
+    // 공고함 카드의 색 타일과 무게가 어긋나 덜 중요해 보인다.
+    const sd = report.schedule || {};
+    const dd = sd.d_day;
+    const urgent = dd !== null && dd !== undefined && dd >= 0 && dd <= 3;
+    const over = dd !== null && dd !== undefined && dd < 0;
+    $("v-schedule").className = "dday" + (urgent ? " urgent" : over ? " quiet" : "");
+    $("v-schedule").innerHTML = sd.label
+      ? `<svg class="i" aria-hidden="true"><use href="#i-calendar-clock"/></svg>` +
+        `<span>${escapeHtml(sd.label)}</span>`
+      : "";
     setNote("v-note", report.note);
 
     $("v-rows").innerHTML = report.rows.length
@@ -584,12 +594,13 @@ async function loadEligibility(refresh) {
 
     loadChecklist(report.docs_source);
 
+    // 남은 기간은 위 요약으로 올렸다. 여기는 날짜 사실만 둔다 —
+    // 같은 값을 두 번 크게 쓰면 어느 쪽을 봐야 하는지 흐려진다.
     const s = report.schedule;
-    $("v-sched").innerHTML = [
-      `<li>접수 시작: ${escapeHtml(s.begin || "미상")}</li>`,
-      `<li>접수 마감: ${escapeHtml(s.end || "미상")}</li>`,
-      `<li>남은 기간: ${escapeHtml(s.label || "-")} (오늘 ${escapeHtml(s.today || "")})</li>`,
-    ].join("");
+    $("v-sched").innerHTML =
+      `<dt>접수 시작</dt><dd>${escapeHtml(s.begin || "미상")}</dd>` +
+      `<dt>접수 마감</dt><dd><b>${escapeHtml(s.end || "미상")}</b></dd>` +
+      (s.today ? `<dd class="foot">오늘 ${escapeHtml(s.today)} 기준</dd>` : "");
   } catch (e) {
     $("v-rows").innerHTML =
       `<tr><td colspan="4">판정 실패 — ${escapeHtml(e.message)}</td></tr>`;
