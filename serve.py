@@ -55,6 +55,18 @@ _REFRESH = refresh.RefreshCoordinator()
 # 사람은 전부 '미판정'만 보게 된다 — 배포본에서 실제로 한 번 일어났다.
 READONLY = (os.environ.get("READONLY") or "").strip().lower() in ("1", "true", "yes", "on")
 
+# READONLY 에서 막는 것은 '방문자 한 명이 뒤 사람 전부의 화면을 망가뜨리는' 것뿐이다.
+#   profile  소재지 한 줄만 바꿔도 판정 지문이 달라져 저장된 판정이 통째로 무효가 된다
+#   ingest   오픈API 를 20~30분 다시 부르고 오프라인 캐시를 덮어쓴다
+#   judge    LLM 을 수백 건 부른다
+#   past-*   남이 올린 파일이 초안 참고 자료로 섞이거나, 샘플이 지워진다
+# 체크리스트·점검·초안·대화는 막지 않는다. 눌러 봐야 데모가 무너지지 않고,
+# 오히려 그게 보여줄 것이라 막으면 도구가 반쪽이 된다.
+_READONLY_BLOCKED = frozenset((
+    "/api/profile", "/api/ingest", "/api/judge",
+    "/api/past-applications", "/api/past-applications/delete",
+))
+
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
@@ -273,9 +285,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
-        if READONLY:
-            self._json({"error": "공개 시연용 화면이라 저장·수집·생성은 꺼져 있습니다. "
-                                 "판정 결과와 신청서 초안은 그대로 보실 수 있습니다."}, 403)
+        if READONLY and path in _READONLY_BLOCKED:
+            self._json({"error": "공개 시연용 링크라 이 기능은 꺼 두었습니다."}, 403)
             return
         try:
             if path == "/api/profile":

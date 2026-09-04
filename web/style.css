@@ -337,6 +337,9 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
 
 main { padding: 24px 28px 60px; max-width: 1240px; }
 .page-head { margin-bottom: 18px; }
+/* 공개 시연 안내는 부제 아래에 한 줄 더 붙는다. 성격이 다른 문장이라
+   부제와 같은 간격으로 두면 두 줄이 한 문단처럼 붙어 읽힌다. */
+.page-head .sub + .hint { margin: 10px 0 0; }
 .page-head h1 { margin: 0; font-size: 21px; color: var(--foreground); letter-spacing: -.03em; }
 .sub { margin: 5px 0 0; color: var(--muted-foreground); font-size: 13px; }
 

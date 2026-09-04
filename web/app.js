@@ -99,10 +99,10 @@ let writesLocked = false;
 
 function lockWrites() {
   writesLocked = true;
+  // 서버가 막는 것과 같은 범위. 다시 판정은 POST 가 아니라 막히지 않지만,
+  // 좋은 판정을 LLM 으로 덮어써 뒤 사람 화면을 바꾸므로 화면에서 잠근다.
   const 잠글것 = ["btn-ingest", "btn-judge-all", "btn-save-profile",
-                  "btn-upload-past", "btn-draft-go", "btn-to-draft",
-                  "btn-rejudge", "btn-regenerate", "btn-edit-sections",
-                  "btn-chat-send", "btn-apply-sections"];
+                  "btn-upload-past", "btn-rejudge"];
   for (const id of 잠글것) {
     const el = $(id);
     if (!el) continue;
@@ -111,17 +111,18 @@ function lockWrites() {
   }
   // 프로필 폼은 loadProfile() 이 나중에 그리므로 지금 자식을 잠가 봐야 소용없다.
   // inert 는 컨테이너에 걸면 나중에 생긴 자식까지 함께 막는다.
-  for (const id of ["profile-form", "chat-text", "section-list", "past-file"]) {
+  for (const id of ["profile-form", "past-file"]) {
     const el = $(id);
     if (el) el.inert = true;
   }
   document.querySelectorAll(".panel .page-head").forEach((h) => {
-    if (h.querySelector(".log.warn")) return;
+    if (h.querySelector(".hint")) return;
+    // 앰버는 이 앱에서 '확인필요' 뜻이다. 잘못된 게 없는데 경고색을 쓰면
+    // 고장난 화면으로 읽힌다. 곁들이는 안내라 보조 텍스트로 낮춘다.
     const p = document.createElement("p");
-    p.className = "log warn";
-    p.innerHTML = `<svg class="i" aria-hidden="true"><use href="#i-circle-alert"/></svg>` +
-      `<span>공개 시연 화면입니다. 이미 판정해 둔 결과와 신청서 초안을 보실 수 있고, ` +
-      `저장·수집·생성은 꺼져 있습니다.</span>`;
+    p.className = "hint";
+    p.textContent = "공개 시연용 링크입니다. 공고 수집과 회사 프로필 수정은 꺼 두었고, " +
+      "자격 판정과 신청서 초안은 그대로 쓰실 수 있습니다.";
     h.appendChild(p);
   });
 }
