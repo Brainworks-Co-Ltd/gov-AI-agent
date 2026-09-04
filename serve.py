@@ -492,7 +492,7 @@ def main() -> None:
     count = len(store.all_notices(conn))
     conn.close()
 
-    print(f"\n  정부지원사업 공고 분석·신청서 초안 도구")
+    print(f"\n  짚어: 지원사업 도우미")
     print(f"  {'-' * 52}")
     print(f"  하이퍼클로바X : {'연결됨' if hyperclova_api.is_configured() else '미설정 (규칙 판정으로 동작)'}")
     print(f"  기업마당 API  : {'연결됨' if keys.bizinfo_key() else '미설정'}")
