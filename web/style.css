@@ -439,7 +439,10 @@ main { padding: 24px 28px 60px; max-width: 1240px; }
   color: var(--muted-foreground); padding: 44px 0; text-align: center; font-size: 13px;
   background: var(--card); border: 1px dashed var(--border); border-radius: var(--radius-md);
 }
-.empty.small { padding: 14px 0; text-align: left; font-size: 13px; background: none; border: none; }
+.empty.small {
+  padding: 0; margin: 10px 0 0; text-align: left; font-size: 13px;
+  background: none; border: none;
+}
 /* 공고함 상단 집계 — 담당자가 목록을 훑기 전에 판세를 먼저 본다 */
 .tally { display: flex; gap: 7px; margin: 0 0 10px; flex-wrap: wrap; }
 /* 집계 배지는 버튼이다. button 프리미티브의 면·그림자는 걷고 배지 모양만 남긴다.
@@ -568,7 +571,7 @@ ul.plain li, ol.plain li { margin: 4px 0; }
 /* 안내 목록. 산문 한 덩어리보다 훑기 쉽지만 본문이 아니라 곁들이는 글이라
    보조색으로 낮춘다. 번호는 순서가 진짜 있을 때만 쓴다 — '글 점검'의 셋은
    순서가 아니라 나열이라 ul, '말로 고치기'는 고르고→적고→표시되는 순서라 ol. */
-.guide { color: var(--muted-foreground); font-size: 12.5px; line-height: 1.65; margin: 0 0 10px; }
+.plain.guide { color: var(--muted-foreground); font-size: 12.5px; line-height: 1.65; margin: 0; }
 .guide b { font-weight: 700; color: var(--foreground); }
 .guide li { margin: 3px 0; }
 
