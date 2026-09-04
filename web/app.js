@@ -344,8 +344,16 @@ function renderProgress(status) {
   }
 }
 
+/* 시작 직후 문구. 첫 진행 보고가 올 때까지 화면과 폴링이 같은 말을 해야
+   서로 덮어쓰며 깜빡이지 않는다. */
+const STARTING_NOTE =
+  "갱신 작업을 시작했습니다. 현재 목록은 저장된 결과로 계속 볼 수 있습니다.";
+
 function refreshMessage(status) {
   if (status.state === "running") {
+    // start() 직후에는 셀 것이 아직 없다. 이 상태를 판정 진행으로 적으면
+    // '0/0건'이 시작 문구를 덮고 1초쯤 머물러, 한 건도 못 센 것처럼 보인다.
+    if (status.phase === "starting") return STARTING_NOTE;
     if (status.phase === "collecting") {
       return "기업마당과 K-Startup 공고를 수집하고 중복을 통합하는 중입니다…";
     }
@@ -436,7 +444,7 @@ async function startRefresh(path) {
     const status = await post(path, {});
     observedRefresh = true;
     $("ingest-log").textContent = status.started
-      ? "갱신 작업을 시작했습니다. 현재 목록은 저장된 결과로 계속 볼 수 있습니다."
+      ? STARTING_NOTE
       : "이미 갱신 작업이 진행 중입니다.";
     toast(status.started
       ? "갱신을 시작했습니다. 끝나면 알려 드립니다."
