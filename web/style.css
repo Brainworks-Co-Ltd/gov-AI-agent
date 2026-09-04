@@ -277,7 +277,10 @@ input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
   position: sticky; top: 0; height: 100vh; overflow-y: auto;
 }
 .rail-brand { padding: 20px 18px 6px; }
-.rail-brand b { display: block; font-size: 15px; color: var(--foreground); letter-spacing: -.02em; }
+/* 워드마크다. 두 글자뿐이라 본문 크기로 두면 이름이 아니라 라벨로 읽힌다.
+   본문 제목(h2 18px)보다 크되 화면 제목(h1 21px)은 넘지 않는다. */
+.rail-brand b { display: block; font-size: 20px; font-weight: 800;
+                color: var(--foreground); letter-spacing: -.04em; }
 .rail-brand span { font-size: 11px; color: var(--muted-foreground); }
 .rail-lab {
   padding: 16px 20px 6px; font-size: 11px; font-weight: 700;

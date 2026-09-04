@@ -145,7 +145,7 @@ function noticeCard(item) {
   const quiet = item.d_day === null || item.d_day < 0;
   const verdict = item.verdict || "미판정";
   const merged = item.merged
-    ? `<span class="tag">${escapeHtml(item.sources.join(" · "))} 통합</span>` : "";
+    ? `<span class="tag">${escapeHtml(item.sources.join(", "))} 통합</span>` : "";
 
   // 카드 본문과 북마크를 각각 실제 버튼으로 두어 중첩된 인터랙션을 피한다.
   const open = document.createElement("button");
@@ -155,9 +155,11 @@ function noticeCard(item) {
     <div class="dday ${urgent ? "urgent" : quiet ? "quiet" : ""}"><svg class="i" aria-hidden="true"><use href="#i-calendar-clock"/></svg>${dday}</div>
     <div class="grow">
       <div class="title">${escapeHtml(item.title)}${merged}</div>
-      <div class="line2">${escapeHtml(item.agency || "소관기관 미상")}
-        · ${escapeHtml(item.support_field || "분야 미상")}
-        · 마감 ${escapeHtml(item.apply_end || "미상")}</div>
+      <div class="line2">${[
+        escapeHtml(item.agency || "소관기관 미상"),
+        escapeHtml(item.support_field || "분야 미상"),
+        "마감 " + escapeHtml(item.apply_end || "미상"),
+      ].join(", ")}</div>
     </div>
     <span class="badge ${verdict}">${verdict}</span>`;
   open.addEventListener("click", () => openNotice(item));
@@ -259,7 +261,7 @@ function renderRecommended(picks) {
     const grow = card.querySelector(".grow");
     const why = document.createElement("div");
     why.className = "why";
-    why.textContent = "추천 이유: " + p.reasons.join(" · ");
+    why.textContent = "추천 이유: " + p.reasons.join(", ");
     grow.appendChild(why);
     list.appendChild(card);
   });
@@ -345,27 +347,31 @@ function renderProgress(status) {
 function refreshMessage(status) {
   if (status.state === "running") {
     if (status.phase === "collecting") {
-      return "기업마당·K-Startup 공고를 수집하고 중복을 통합하는 중입니다…";
+      return "기업마당과 K-Startup 공고를 수집하고 중복을 통합하는 중입니다…";
     }
     return `판정 결과 갱신 중… ${status.done || 0}/${status.total || 0}건 ` +
-      `(기존 ${status.cached || 0}건 · 새로 ${status.refreshed || 0}건)`;
+      `(기존 ${status.cached || 0}건, 새로 ${status.refreshed || 0}건)`;
   }
   if (status.state === "failed") {
     return "갱신 실패 — " + ((status.errors || [])[0] || "원인을 확인하지 못했습니다.");
   }
   if (status.state === "succeeded") {
     // 중간에 멈춘 것을 '완료'로 적으면 남은 건수가 없어진 것처럼 읽힌다.
-    if (status.stopped) {
-      return `중지했습니다 — 새로 ${status.refreshed || 0}건까지 판정했습니다.` +
-        " 다시 누르면 남은 것부터 이어서 돕니다.";
-    }
-    const summary = `갱신 완료 — 새로 ${status.refreshed || 0}건 · ` +
+    if (status.stopped) return stoppedMessage(status);
+    const summary = `갱신 완료. 새로 ${status.refreshed || 0}건, ` +
       `기존 ${status.cached || 0}건` +
-      (status.failed ? ` · 실패 ${status.failed}건` : "");
+      (status.failed ? `, 실패 ${status.failed}건` : "");
     const notes = status.ingest && status.ingest.notes;
     return notes && notes.length ? notes.join("\n") + "\n" + summary : summary;
   }
   return "";
+}
+
+/* 중지 안내. 화면과 토스트가 같은 문장을 따로 지으면 한쪽만 고치게 된다. */
+function stoppedMessage(status) {
+  return `중지했습니다. 중지 명령을 내리기 전까지 판정한 ` +
+    `${status.refreshed || 0}건은 저장했습니다. ` +
+    "다시 누르면 남은 것부터 이어서 판정합니다.";
 }
 
 async function pollRefresh() {
@@ -389,11 +395,10 @@ async function pollRefresh() {
       if (status.state === "failed") {
         toast("갱신 실패 — " + ((status.errors || [])[0] || "원인을 확인하지 못했습니다."), false);
       } else if (status.stopped) {
-        toast(`중지했습니다 — 새로 ${status.refreshed || 0}건까지 판정했습니다.`
-              + " 다시 누르면 남은 것부터 이어서 돕니다.");
+        toast(stoppedMessage(status));
       } else {
-        toast(`갱신 완료 — 새로 ${status.refreshed || 0}건 · 기존 ${status.cached || 0}건`
-              + (status.failed ? ` · 실패 ${status.failed}건` : ""));
+        toast(`갱신 완료. 새로 ${status.refreshed || 0}건, 기존 ${status.cached || 0}건`
+              + (status.failed ? `, 실패 ${status.failed}건` : ""));
       }
       await loadNotices();
     }
@@ -450,9 +455,9 @@ $("btn-judge-all").addEventListener("click", () => {
   const mins = Math.max(1, Math.round((left * 3.3) / 60));
   const ok = window.confirm(
     `판정이 없는 ${left}건을 판정합니다.\n\n` +
-    `· 한 건에 3초 남짓 걸려 약 ${mins}분 예상입니다\n` +
-    "· 도는 동안에도 저장된 목록은 계속 볼 수 있고, 언제든 중지할 수 있습니다\n" +
-    "· 이미 판정된 공고는 건너뜁니다\n\n" +
+    `- 한 건에 3초 남짓 걸려 약 ${mins}분 예상입니다\n` +
+    "- 도는 동안에도 저장된 목록은 계속 볼 수 있고, 언제든 중지할 수 있습니다\n" +
+    "- 이미 판정된 공고는 건너뜁니다\n\n" +
     "계속할까요?");
   if (ok) startRefresh("/api/judge");
 });
@@ -479,9 +484,9 @@ $("btn-ingest").addEventListener("click", () => {
   const mins = Math.max(1, Math.round((left * 3.3) / 60));
   const ok = window.confirm(
     "공고를 새로 수집합니다.\n\n" +
-    "· 기업마당·K-Startup API를 다시 부릅니다\n" +
-    "· 받아온 결과로 오프라인 캐시를 덮어씁니다 (이전 것은 남지 않습니다)\n" +
-    `· 판정이 없는 ${left}건을 다시 판정합니다 — 약 ${mins}분\n\n` +
+    "- 기업마당과 K-Startup API를 다시 부릅니다\n" +
+    "- 받아온 결과로 오프라인 캐시를 덮어씁니다 (이전 것은 남지 않습니다)\n" +
+    `- 판정이 없는 ${left}건을 다시 판정합니다 — 약 ${mins}분\n\n` +
     "진행하는 동안에도 저장된 목록은 계속 볼 수 있습니다." +
     "\n계속할까요?");
   if (ok) startRefresh("/api/ingest");
@@ -517,14 +522,14 @@ async function openNotice(item) {
   const links = (item.source_links || []).length
     ? (item.source_links || []).map((l) =>
         `<a href="${escapeHtml(l.url)}" target="_blank" rel="noreferrer">
-           ${escapeHtml(l.source)} 원문 공고 ↗</a>`).join(" · ")
+           ${escapeHtml(l.source)} 원문 공고 ↗</a>`).join(", ")
     : `<span class="none">원문 링크가 제공되지 않은 공고입니다.</span>`;
 
   $("v-meta").innerHTML =
     `소관기관 ${escapeHtml(item.agency || "미상")}` +
-    ` · 자료 출처 <strong>${escapeHtml(item.sources.join(" + "))} 오픈API</strong>` +
+    `, 자료 출처 <strong>${escapeHtml(item.sources.join(" + "))} 오픈API</strong>` +
     (item.merge_reason
-      ? ` · 통합 근거: ${escapeHtml(item.merge_reason)}` : "") +
+      ? `, 통합 근거: ${escapeHtml(item.merge_reason)}` : "") +
     `<br>${links}`;
 
   $("v-rows").innerHTML = `<tr>` + [4,3,4].map((n,i)=>`<td>` + `<span class="sk w80"></span>`.repeat(1) + (i===2 ? `<span class="sk w60"></span>` : ``) + `</td>`).join("") + `<td><span class="sk"></span><span class="sk w40"></span></td></tr>`;
@@ -592,7 +597,7 @@ async function loadEligibility(refresh) {
     $("v-dates").innerHTML = sd.end
       ? `마감 <b>${escapeHtml(sd.end)}${weekday(sd.end)}</b>` +
         `<small>접수 시작 ${escapeHtml(sd.begin || "미상")}` +
-        (sd.today ? ` · 오늘 ${escapeHtml(sd.today)}` : "") + `</small>`
+        (sd.today ? `, 오늘 ${escapeHtml(sd.today)}` : "") + `</small>`
       : "";
     setNote("v-note", report.note);
 
@@ -823,7 +828,7 @@ function renderIssues(issues) {
   }
   $("d-issues").innerHTML = issues.map((i) => `
     <div class="issue ${i.severity}">
-      <div class="where">[${escapeHtml(i.severity)}] ${escapeHtml(i.kind)} · ${escapeHtml(i.where)}</div>
+      <div class="where">[${escapeHtml(i.severity)}] ${escapeHtml(i.kind)}, ${escapeHtml(i.where)}</div>
       <div class="msg">${escapeHtml(i.message)}</div>
       ${i.suggestion ? `<div class="fix">→ ${escapeHtml(i.suggestion)}</div>` : ""}
     </div>`).join("");
@@ -986,22 +991,22 @@ const PROFILE_FIELDS = [
   ["biz_no", "사업자등록번호", "text"],
   ["industry", "업종", "text"], ["ksic", "표준산업분류 코드", "text"],
   ["company_type", "기업규모", "text"],
-  ["region", "소재지 시·도", "text"], ["region_detail", "시·군·구", "text"],
+  ["region", "소재지 시/도", "text"], ["region_detail", "시/군/구", "text"],
   ["founded", "설립일 (YYYY-MM-DD)", "text"],
   ["employees", "상시근로자 수", "number"],
   ["revenue_krw", "직전연도 매출액 (원)", "number"],
   ["export_usd", "직전연도 수출액 (달러)", "number"],
-  ["tax_arrears", "국세·지방세를 체납 중이다", "bool"],
-  ["closed", "휴업·폐업 상태다", "bool"],
+  ["tax_arrears", "국세나 지방세를 체납 중이다", "bool"],
+  ["closed", "휴업 또는 폐업 상태다", "bool"],
   ["venture_certified", "벤처인증기업이다", "bool"],
   ["root_tech", "뿌리기술 활용 기업이다", "bool"],
   ["women_owned", "여성기업 확인서를 보유했다", "bool"],
   ["smart_factory", "스마트공장을 이미 구축했다", "bool"],
   ["tech_services", "보유 기술 및 서비스 (구체적일수록 초안이 구체적으로 나옵니다)", "area"],
-  ["strengths", "회사 강점·현안 (초안에 쓰입니다)", "area"],
+  ["strengths", "회사 강점과 현안 (초안에 쓰입니다)", "area"],
   ["prior_support", "최근 3년 지원사업 수혜 이력 (쉼표로 구분 — 중복 수혜 판정에 쓰입니다)", "list"],
   // 주생산품·설비처럼 회사마다 다른 항목. 미리 칸을 정해 둘 수 없어 이름부터 직접 적는다.
-  ["extra", "그 밖의 회사 정보 (주생산품·설비 등 — 초안에 그대로 쓰입니다)", "pairs"],
+  ["extra", "그 밖의 회사 정보 (주생산품, 설비 등 — 초안에 그대로 쓰입니다)", "pairs"],
 ];
 
 function renderProfile(p) {
@@ -1045,7 +1050,7 @@ function renderProfile(p) {
   });
 }
 
-/* '이름 / 내용' 한 줄. 회사마다 적을 항목이 달라(주생산품·설비·보유 라인…)
+/* '이름 / 내용' 한 줄. 회사마다 적을 항목이 달라(주생산품, 설비, 보유 라인…)
  * 칸을 미리 정해 둘 수 없어, 이름부터 담당자가 적게 한다. */
 function pairRow(name, value) {
   const row = document.createElement("div");
