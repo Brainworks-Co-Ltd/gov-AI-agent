@@ -49,6 +49,12 @@ _STATIC_TYPES = {".html": "text/html; charset=utf-8",
 _VERDICT_SORT = {"가능": 0, "확인필요": 1, "불가": 2}
 _REFRESH = refresh.RefreshCoordinator()
 
+# QR 로 아무나 들어오는 공개 시연에서는 쓰기를 막는다. 이 앱에는 로그인이 없고
+# 회사 프로필이 서버에 하나뿐이라, 방문자 한 명이 소재지를 고쳐 저장하면 판정
+# 지문이 달라져 저장해 둔 판정 수백 건이 통째로 무효가 된다. 그 뒤에 들어온
+# 사람은 전부 '미판정'만 보게 된다 — 배포본에서 실제로 한 번 일어났다.
+READONLY = (os.environ.get("READONLY") or "").strip().lower() in ("1", "true", "yes", "on")
+
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
@@ -264,6 +270,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
+        if READONLY:
+            self._json({"error": "공개 시연용 화면이라 저장·수집·생성은 꺼져 있습니다. "
+                                 "판정 결과와 신청서 초안은 그대로 보실 수 있습니다."}, 403)
+            return
         try:
             if path == "/api/profile":
                 self._save_profile()
