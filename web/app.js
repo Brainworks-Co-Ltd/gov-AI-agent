@@ -121,8 +121,8 @@ function lockWrites() {
     // 고장난 화면으로 읽힌다. 곁들이는 안내라 보조 텍스트로 낮춘다.
     const p = document.createElement("p");
     p.className = "hint";
-    p.textContent = "공개 시연용 링크입니다. 공고 수집과 회사 프로필 수정은 꺼 두었고, " +
-      "자격 판정과 신청서 초안은 그대로 쓰실 수 있습니다.";
+    p.textContent = "공개 시연용 링크입니다. 저장된 판정을 보고 신청서 초안을 " +
+      "만들어 보실 수 있습니다. 공고 수집, 회사 프로필 수정, 판정 다시 하기는 꺼 두었습니다.";
     h.appendChild(p);
   });
 }

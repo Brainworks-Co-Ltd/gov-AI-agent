@@ -169,7 +169,11 @@ class Handler(BaseHTTPRequestHandler):
                     self._json(orchestrator.notice_view(conn, notice))
                     return
                 if tail == "eligibility":
-                    refresh = query.get("refresh", ["0"])[0] == "1"
+                    # 다시 판정은 저장된 판정을 지우고 LLM 으로 새로 뽑는다. 추출이
+                    # 비결정적이라 결과가 달라져, 방문자 한 명이 누르면 뒤에 온
+                    # 사람은 다른 판정을 본다. 공개 링크에서는 요청을 무시하고
+                    # 저장된 것을 그대로 돌려준다 — 화면은 그대로 돌아간다.
+                    refresh = (not READONLY) and query.get("refresh", ["0"])[0] == "1"
                     report = orchestrator.eligibility_of(conn, notice, refresh=refresh)
                     data = report.to_dict()
                     # 제출서류 목록은 오픈API 응답에 사실상 없고 첨부(공고문·서식) 안에
