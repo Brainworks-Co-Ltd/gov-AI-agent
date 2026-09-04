@@ -563,8 +563,14 @@ h3 { font-size: 15px; margin: 24px 0 10px; color: var(--foreground); letter-spac
 .overview .none { grid-column: 1 / -1; color: var(--muted-foreground); }
 
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-ul.plain { margin: 0; padding-left: 18px; }
-ul.plain li { margin: 4px 0; }
+ul.plain, ol.plain { margin: 0; padding-left: 18px; }
+ul.plain li, ol.plain li { margin: 4px 0; }
+/* 안내 목록. 산문 한 덩어리보다 훑기 쉽지만 본문이 아니라 곁들이는 글이라
+   보조색으로 낮춘다. 번호는 순서가 진짜 있을 때만 쓴다 — '글 점검'의 셋은
+   순서가 아니라 나열이라 ul, '말로 고치기'는 고르고→적고→표시되는 순서라 ol. */
+.guide { color: var(--muted-foreground); font-size: 12.5px; line-height: 1.65; margin: 0 0 10px; }
+.guide b { font-weight: 700; color: var(--foreground); }
+.guide li { margin: 3px 0; }
 
 /* 첨부파일 — 담당자가 실제로 눌러서 받는 링크라 버튼처럼 보이게 한다. */
 ul.files { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
