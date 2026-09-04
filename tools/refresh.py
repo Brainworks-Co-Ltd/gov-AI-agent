@@ -12,6 +12,7 @@ import argparse
 import copy
 import json
 import threading
+import time
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any
@@ -29,13 +30,57 @@ def _ignore_progress(update: dict[str, Any]) -> None:
     """CLI가 진행 콜백을 지정하지 않았을 때 사용하는 빈 콜백."""
 
 
+def _demo(seconds: float, notify: Progress, collect_first: bool,
+          should_stop: Callable[[], bool] | None) -> dict[str, Any]:
+    """데모 촬영용. 오픈API도 LLM도 부르지 않고, DB에 이미 있는 결과를
+    seconds 초에 걸쳐 훑어 보여 준다.
+
+    화면에 뜨는 숫자와 판정은 전부 지난 실제 수집·판정의 결과다. 지어내는 것은
+    걸린 시간뿐이다. 촬영 중에 20분짜리 작업이 시작되는 사고도 이걸로 막는다.
+    """
+    started = time.monotonic()
+    conn = store.connect()
+    try:
+        selected = profile_store.load()
+        notices = store.open_businesses(conn)
+        total = len(notices)
+        cached = sum(1 for n in notices
+                     if orchestrator.has_valid_verdict(conn, n, selected))
+    finally:
+        conn.close()
+
+    def 남은() -> float:
+        return max(0.0, seconds - (time.monotonic() - started))
+
+    if collect_first:
+        notify({"phase": "collecting", "done": 0, "total": total})
+        time.sleep(남은() / 4)
+
+    # 화면은 1초마다 상태를 읽으므로 열 토막이면 막대가 움직이는 게 보인다.
+    # 남은 시간을 남은 토막 수로 나눠, DB를 훑느라 쓴 시간까지 예산에 넣는다.
+    stopped = False
+    for step in range(1, 11):
+        if should_stop is not None and should_stop():
+            stopped = True
+            break
+        time.sleep(남은() / (11 - step))
+        shown = cached * step // 10
+        notify({"phase": "judging", "total": total, "done": shown,
+                "cached": shown, "refreshed": 0, "failed": 0})
+    return {"ok": True, "total": total, "cached": cached, "refreshed": 0,
+            "failed": 0, "stopped": stopped, "errors": [], "demo": True}
+
+
 def run(*, collect_first: bool = False, use_llm: bool = True,
         offline: bool = False, profile: CompanyProfile | None = None,
         evaluate: Evaluator | None = None,
         progress: Progress | None = None,
-        should_stop: Callable[[], bool] | None = None) -> dict[str, Any]:
+        should_stop: Callable[[], bool] | None = None,
+        demo: float = 0.0) -> dict[str, Any]:
     """공식 API를 선택적으로 수집하고, 유효하지 않은 판정만 다시 계산한다."""
     notify = progress or _ignore_progress
+    if demo > 0:
+        return _demo(demo, notify, collect_first, should_stop)
     ingest_result = None
     if collect_first:
         notify({"phase": "collecting", "done": 0, "total": 0})

@@ -214,6 +214,48 @@ def test_http_refresh_request_returns_before_job_finishes() -> None:
         thread.join(timeout=2)
 
 
+def test_데모모드는_수집도_판정도_부르지_않는다() -> None:
+    """데모(demo>0)에서는 오픈API·LLM 을 건드리지 않고 DB 값만 훑어 보여 준다."""
+    from tools import refresh
+
+    seen = []
+
+    def 판정하면_안_됨(*args, **kwargs):
+        raise AssertionError("데모에서 판정을 불렀다")
+
+    started = time.monotonic()
+    result = refresh.run(collect_first=True, demo=0.5,
+                         evaluate=판정하면_안_됨,
+                         progress=seen.append)
+    걸린시간 = time.monotonic() - started
+
+    assert result["demo"] is True
+    assert result["refreshed"] == 0
+    assert result["cached"] == result["total"], "판정 안 된 건이 남아 있다"
+    # 수집 몫 1/3 + 판정 몫 1 = 0.5 초의 4/3 남짓
+    assert 0.5 <= 걸린시간 < 2.0, 걸린시간
+    assert [u["phase"] for u in seen][0] == "collecting"
+    진행 = [u["done"] for u in seen if u["phase"] == "judging"]
+    assert 진행 == sorted(진행) and len(진행) == 10, 진행
+
+
+def test_데모모드도_중지를_듣는다() -> None:
+    """촬영 중 잘못 눌러도 중지 버튼이 그대로 먹어야 한다."""
+    from tools import refresh
+
+    멈춤 = [False]
+    본_것 = []
+
+    def 진행(update):
+        본_것.append(update)
+        if len(본_것) >= 3:
+            멈춤[0] = True
+
+    result = refresh.run(demo=0.5, progress=진행, should_stop=lambda: 멈춤[0])
+    assert result["stopped"] is True
+    assert len(본_것) < 10, len(본_것)
+
+
 def demo() -> None:
     tests = [value for name, value in globals().items() if name.startswith("test_")]
     for test in tests:

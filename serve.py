@@ -48,6 +48,22 @@ _STATIC_TYPES = {".html": "text/html; charset=utf-8",
 # 판정 순 정렬. 담당자가 먼저 볼 것부터 — 가능 → 확인필요 → 불가 → 미판정.
 _VERDICT_SORT = {"가능": 0, "확인필요": 1, "불가": 2}
 _REFRESH = refresh.RefreshCoordinator()
+# 데모 촬영 모드. DEMO=2.5 처럼 초를 주거나 DEMO=1 로 켠다(기본 2.5초).
+# 켜면 '공고 새로 수집'과 '판정 결과 갱신'이 오픈API도 LLM도 부르지 않고,
+# 이미 판정해 둔 결과를 그 시간에 걸쳐 보여 준다. 자세한 것은 refresh._demo.
+def _demo_pace() -> float:
+    raw = (os.environ.get("DEMO") or "").strip().lower()
+    if not raw or raw in ("0", "false", "no", "off"):
+        return 0.0
+    if raw in ("1", "true", "yes", "on"):
+        return 2.5              # 그냥 켰다 — 기본 완급
+    try:
+        return max(0.5, min(10.0, float(raw)))   # DEMO=3 처럼 초를 직접 준 경우
+    except ValueError:
+        return 2.5
+
+
+_DEMO = _demo_pace()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -272,7 +288,7 @@ class Handler(BaseHTTPRequestHandler):
                 body = self._body()
                 self._json(_REFRESH.start(
                     collect_first=True, use_llm=body.get("use_llm", True),
-                    offline=body.get("offline", False)), 202)
+                    offline=body.get("offline", False), demo=_DEMO), 202)
                 return
             if path == "/api/past-applications":
                 # 파일을 그대로 본문으로 받는다. multipart 를 손으로 파싱하지 않으려고
@@ -304,7 +320,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(_REFRESH.stop())
                 return
             if path == "/api/judge":
-                self._json(_REFRESH.start(collect_first=False), 202)
+                self._json(_REFRESH.start(collect_first=False, demo=_DEMO), 202)
                 return
 
             conn = store.connect()
@@ -498,6 +514,8 @@ def main() -> None:
     print(f"  기업마당 API  : {'연결됨' if keys.bizinfo_key() else '미설정'}")
     print(f"  K-Startup API : {'연결됨' if keys.datagokr_key() else '미설정'}")
     print(f"  저장된 공고    : {count}건")
+    if _DEMO:
+        print(f"  ** 데모 모드   : 수집과 판정 버튼이 실제 작업 없이 {_DEMO:g}초에 걸쳐 기존 결과만 보여줍니다")
     print(f"  {'-' * 52}")
 
     servers = _start_servers()
