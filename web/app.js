@@ -529,7 +529,7 @@ async function openNotice(item) {
 
   $("v-rows").innerHTML = `<tr>` + [4,3,4].map((n,i)=>`<td>` + `<span class="sk w80"></span>`.repeat(1) + (i===2 ? `<span class="sk w60"></span>` : ``) + `</td>`).join("") + `<td><span class="sk"></span><span class="sk w40"></span></td></tr>`;
   $("v-overall").textContent = "";
-  $("v-note").textContent = "";
+  setNote("v-note", "");
   renderOverview(item);
   renderFiles($("v-files"), item.attachments, false);
   await loadEligibility(false);
@@ -566,7 +566,7 @@ async function loadEligibility(refresh) {
     $("ctx-badge").textContent = report.overall;
     $("ctx-badge").className = "badge " + report.overall;
     $("v-schedule").textContent = report.schedule.label || "";
-    $("v-note").textContent = report.note || "";
+    setNote("v-note", report.note);
 
     $("v-rows").innerHTML = report.rows.length
       ? report.rows.map((r) => `
@@ -577,7 +577,10 @@ async function loadEligibility(refresh) {
                 <div class="reason">${escapeHtml(r.reason)}</div></td>
             <td><div class="quote">“${escapeHtml(r.quote)}”</div></td>
           </tr>`).join("")
-      : `<tr><td colspan="4">공고문에서 자격요건을 찾지 못했습니다. 원문을 직접 확인하세요.</td></tr>`;
+      : `<tr><td colspan="4"><p class="log warn">` +
+          `<svg class="i" aria-hidden="true"><use href="#i-circle-alert"/></svg>` +
+          `<span>공고문에서 자격요건을 찾지 못했습니다. 이 화면만 보고 판단하지 말고 ` +
+          `원문 공고를 직접 확인하세요.</span></p></td></tr>`;
 
     loadChecklist(report.docs_source);
 
@@ -600,18 +603,27 @@ async function loadEligibility(refresh) {
  * 몇 개 쌓이면 담당자가 경고 전체를 무시하게 됩니다. 아는 것(프로필의 보유 서류)만
  * 미리 체크해 두고 나머지는 담당자가 직접 켭니다. 체크 상태는 서버에 남습니다.
  */
+/* 안내 문구를 한 모양으로 그린다. 문구는 화면마다 다르지만 성격은 둘뿐이다 —
+   도구가 못 해서 사람이 확인해야 하는 것(warn), 그냥 알아 두면 되는 것(기본).
+   warn 은 판정의 '확인필요'와 같은 앰버를 쓴다. 담당자가 이미 배운 뜻이다.
+   빈 문구면 자리를 아예 없앤다 — 회색 빈 줄이 화면에 남으면 여백이 어긋난다. */
+function setNote(id, text, warn) {
+  const el = $(id);
+  el.hidden = !text;
+  el.className = warn && text ? "log warn" : "log";
+  el.innerHTML = !text ? ""
+    : warn
+      ? `<svg class="i" aria-hidden="true"><use href="#i-circle-alert"/></svg>` +
+        `<span>${escapeHtml(text)}</span>`
+      : escapeHtml(text);
+}
+
 function renderChecklist(data, docsSource) {
   $("v-docs-progress").textContent =
     data.total ? `${data.done}/${data.total} 준비됨` : "";
   // 목록을 못 뽑았을 때만 나온다 — 아래 5개가 이 공고에서 뽑은 게 아니라
   // 일반 기본 서류라는 뜻이라, 목록보다 먼저 그리고 눈에 띄게 알린다.
-  const note = $("v-docs-note");
-  note.hidden = !data.note;
-  note.className = data.note ? "log warn" : "log";
-  note.innerHTML = data.note
-    ? `<svg class="i" aria-hidden="true"><use href="#i-circle-alert"/></svg>` +
-      `<span>${escapeHtml(data.note)}</span>`
-    : "";
+  setNote("v-docs-note", data.note, true);
 
   // 항목마다 같은 힌트가 붙으면 다섯 번 반복돼 정보가 아니라 배경 소음이 된다.
   // 전부 같은 문구일 때는 목록 아래에 한 번만 쓴다.
@@ -659,7 +671,9 @@ async function saveChecklist() {
       el.classList.toggle("done", box.checked);
     });
   } catch (e) {
-    $("v-docs-note").textContent = "체크 상태를 저장하지 못했습니다 — " + e.message;
+    // 이건 '사람이 확인할 것'이 아니라 동작이 실패한 것이다. 앰버 안내를
+    // 덮어쓰지 않고 실패 토스트로 알린다.
+    toast("체크 상태를 저장하지 못했습니다 — " + e.message, false);
   }
 }
 
@@ -675,7 +689,7 @@ $("btn-to-draft").addEventListener("click", () => openDraft(false));
 function renderDraft(draft) {
   currentDraft = draft;
   $("d-title").textContent = current.title;
-  $("d-note").textContent = draft.note || "";
+  setNote("d-note", draft.note);
   // 초안을 옮겨 담을 서식 파일을 바로 옆에 둔다 — 다시 찾으러 가지 않게.
   renderFiles($("d-files"), current.attachments, true);
 

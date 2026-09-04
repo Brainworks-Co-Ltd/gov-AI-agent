@@ -433,6 +433,8 @@ main { padding: 24px 28px 60px; max-width: 1240px; }
   font-size: 12px; line-height: 1.6; white-space: normal;
 }
 .log.warn .i { width: 15px; height: 15px; margin: 1px 0 0; stroke: var(--chk-fg); }
+/* 표 안에 들어갈 때는 셀이 이미 패딩을 갖고 있어 바깥 여백을 지운다. */
+.grid .log.warn { margin: 0; }
 .empty {
   color: var(--muted-foreground); padding: 44px 0; text-align: center; font-size: 13px;
   background: var(--card); border: 1px dashed var(--border); border-radius: var(--radius-md);
