@@ -482,9 +482,13 @@ $("btn-judge-all").addEventListener("click", () => {
 $("btn-refresh-stop").addEventListener("click", async () => {
   $("btn-refresh-stop").disabled = true;
   try {
-    await post("/api/refresh/stop", {});
-    // 판정 한 건이 끝나는 대로 멈추므로 곧바로 idle 이 되지는 않는다.
-    $("ingest-log").textContent = "중지를 요청했습니다. 진행 중인 한 건을 마치고 멈춥니다…";
+    // 누르는 사이에 작업이 끝났을 수 있다. 서버가 '멈출 게 없었다'고 하면
+    // 중지했다고 적지 않는다 — 하지도 않은 일을 적는 셈이 된다.
+    const res = await post("/api/refresh/stop", {});
+    if (res.stopping) {
+      // 판정 한 건이 끝나는 대로 멈추므로 곧바로 idle 이 되지는 않는다.
+      $("ingest-log").textContent = "중지를 요청했습니다. 진행 중인 한 건을 마치고 멈춥니다…";
+    }
   } catch (e) {
     toast("중지 요청 실패 — " + e.message, false);
   } finally {

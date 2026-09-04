@@ -89,10 +89,15 @@ body {
 
 /* ═══════════════════════════════════════════════════ ② 프리미티브 */
 
-/* 아이콘 스프라이트는 화면에 나오지 않아야 한다. HTML 의 hidden 속성은 SVG 요소에
+/* hidden 은 '지금 없는 것'이라는 뜻이라 무엇보다 세다. 그런데 작성자 스타일의
+   display 는 브라우저 기본 [hidden]{display:none} 을 이겨서, button 이나 .bar 에
+   display 를 준 순간 hidden 이 조용히 무력해진다 — 중지 버튼과 진행 막대가
+   아무것도 안 도는데 화면에 남아 있었다. 여기서 한 번에 못 박는다.
+   (SVG 에는 hidden 속성이 원래 안 먹는 것도 이 규칙이 함께 해결한다.)
+   옛 주석: 아이콘 스프라이트는 화면에 나오지 않아야 한다. HTML 의 hidden 속성은 SVG 요소에
    먹지 않아 display:inline 으로 남고, 그 자리에서 150px 를 차지해 본문 전체가
    아래로 밀렸다. 명시적으로 감춘다. */
-svg[hidden] { display: none; }
+[hidden] { display: none !important; }
 
 /* 아이콘. index.html 상단 스프라이트의 <symbol> 을 <use> 로 부른다. 색은 글자색을
    따르고, 선 굵기는 Lucide 기본(2)이다. 글자 옆에 붙을 때 baseline 을 맞춘다. */
