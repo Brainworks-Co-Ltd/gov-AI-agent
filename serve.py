@@ -145,7 +145,9 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/refresh":
-            self._json(_REFRESH.status())
+            # 화면은 이 값을 보고 '긴 작업 경고'를 띄울지 정한다. 데모에서는
+            # 경고할 긴 작업 자체가 없어서, 켜져 있다는 걸 알려 줘야 한다.
+            self._json({**_REFRESH.status(), "demo": _DEMO})
             return
 
         conn = store.connect()

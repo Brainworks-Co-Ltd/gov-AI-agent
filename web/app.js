@@ -358,6 +358,20 @@ function renderProgress(status) {
 const STARTING_NOTE =
   "갱신 작업을 시작했습니다. 현재 목록은 저장된 결과로 계속 볼 수 있습니다.";
 
+/* 끝났을 때 한 줄. 평소에는 이번에 무엇을 했는지(변화)를 적는다. 데모에서는
+   실제로 판정한 게 없어 '새로 0건'만 남는데, 그러면 한 일이 없어 보인다.
+   그 자리에는 지금 어떤 상태인지를 적는 편이 사실에 가깝고 읽기도 낫다. */
+function doneMessage(status) {
+  const all = status.total || 0;
+  const done = status.cached || 0;
+  if (demoPace) {
+    return `갱신 완료. 접수중 ${all}건 ` +
+      (done === all ? "전부" : `중 ${done}건`) + " 판정되어 있습니다.";
+  }
+  return `갱신 완료. 새로 ${status.refreshed || 0}건, 기존 ${done}건` +
+    (status.failed ? `, 실패 ${status.failed}건` : "");
+}
+
 function refreshMessage(status) {
   if (status.state === "running") {
     // start() 직후에는 셀 것이 아직 없다. 이 상태를 판정 진행으로 적으면
@@ -375,9 +389,7 @@ function refreshMessage(status) {
   if (status.state === "succeeded") {
     // 중간에 멈춘 것을 '완료'로 적으면 남은 건수가 없어진 것처럼 읽힌다.
     if (status.stopped) return stoppedMessage(status);
-    const summary = `갱신 완료. 새로 ${status.refreshed || 0}건, ` +
-      `기존 ${status.cached || 0}건` +
-      (status.failed ? `, 실패 ${status.failed}건` : "");
+    const summary = doneMessage(status);
     const notes = status.ingest && status.ingest.notes;
     return notes && notes.length ? notes.join("\n") + "\n" + summary : summary;
   }
@@ -391,10 +403,16 @@ function stoppedMessage(status) {
     "다시 누르면 남은 것부터 이어서 판정합니다.";
 }
 
+/* 촬영용 데모 모드일 때 서버가 알려 주는 완급(초). 0이면 평소대로다.
+   이 값이 켜져 있으면 수집도 판정도 실제로는 돌지 않으므로, 긴 작업을 두고
+   경고하는 확인창과 '판정할 게 없다'는 가드를 건너뛴다. */
+let demoPace = 0;
+
 async function pollRefresh() {
   clearTimeout(refreshTimer);
   try {
     const status = await api("/api/refresh");
+    demoPace = status.demo || 0;
     const running = status.state === "running";
     setRefreshButtons(running);
     if (running) {
@@ -414,8 +432,7 @@ async function pollRefresh() {
       } else if (status.stopped) {
         toast(stoppedMessage(status));
       } else {
-        toast(`갱신 완료. 새로 ${status.refreshed || 0}건, 기존 ${status.cached || 0}건`
-              + (status.failed ? `, 실패 ${status.failed}건` : ""));
+        toast(doneMessage(status));
       }
       await loadNotices();
     }
@@ -467,6 +484,7 @@ async function startRefresh(path) {
 }
 
 $("btn-judge-all").addEventListener("click", () => {
+  if (demoPace) { startRefresh("/api/judge"); return; }
   const left = Number($("inbox-tally").dataset.left || 0);
   if (!left) { toast("판정할 공고가 없습니다. 모두 판정돼 있습니다."); return; }
   const mins = Math.max(1, Math.round((left * 3.3) / 60));
@@ -497,6 +515,8 @@ $("btn-refresh-stop").addEventListener("click", async () => {
    앱에 이미 쓰고 있는 confirm 을 그대로 쓴다 — 모달을 새로 만들면 초점 가두기와
    Esc 처리를 직접 짜야 하는데, 그 값을 하는 자리가 아니다. */
 $("btn-ingest").addEventListener("click", () => {
+  // 데모에서는 API도 안 부르고 캐시도 안 덮어쓰므로 경고할 것이 없다.
+  if (demoPace) { startRefresh("/api/ingest"); return; }
   const left = Number($("inbox-tally").dataset.left || 0);
   const mins = Math.max(1, Math.round((left * 3.3) / 60));
   const ok = window.confirm(
