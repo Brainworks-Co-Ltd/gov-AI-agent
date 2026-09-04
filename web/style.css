@@ -422,6 +422,17 @@ main { padding: 24px 28px 60px; max-width: 1240px; }
 /* 프로필 탭의 박스는 앞 요소(설명·저장 버튼)에 그대로 붙어 있었다. */
 #tab-profile > .box { margin-top: 18px; }
 .log { color: var(--muted-foreground); font-size: 12px; margin: 6px 0; min-height: 16px; white-space: pre-line; }
+/* 도구가 스스로 못 한 일을 알리는 자리. 이 앱에서 '사람이 확인해야 함'은 앰버라,
+   판정의 확인필요와 같은 색을 쓴다 — 담당자가 이미 배운 뜻을 다시 쓰는 것이다. */
+.log.warn {
+  display: flex; align-items: flex-start; gap: 8px;
+  background: var(--chk-bg); color: var(--chk-fg);
+  border-left: 3px solid var(--chk-border);
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  padding: 9px 11px; margin: 0 0 10px; min-height: 0;
+  font-size: 12px; line-height: 1.6; white-space: normal;
+}
+.log.warn .i { width: 15px; height: 15px; margin: 1px 0 0; stroke: var(--chk-fg); }
 .empty {
   color: var(--muted-foreground); padding: 44px 0; text-align: center; font-size: 13px;
   background: var(--card); border: 1px dashed var(--border); border-radius: var(--radius-md);

@@ -575,7 +575,7 @@ async function loadEligibility(refresh) {
             <td>${escapeHtml(r.company_value)}</td>
             <td><span class="badge ${r.verdict}">${r.verdict}</span>
                 <div class="reason">${escapeHtml(r.reason)}</div></td>
-            <td class="quote">“${escapeHtml(r.quote)}”</td>
+            <td><div class="quote">“${escapeHtml(r.quote)}”</div></td>
           </tr>`).join("")
       : `<tr><td colspan="4">공고문에서 자격요건을 찾지 못했습니다. 원문을 직접 확인하세요.</td></tr>`;
 
@@ -603,7 +603,15 @@ async function loadEligibility(refresh) {
 function renderChecklist(data, docsSource) {
   $("v-docs-progress").textContent =
     data.total ? `${data.done}/${data.total} 준비됨` : "";
-  $("v-docs-note").textContent = data.note || "";
+  // 목록을 못 뽑았을 때만 나온다 — 아래 5개가 이 공고에서 뽑은 게 아니라
+  // 일반 기본 서류라는 뜻이라, 목록보다 먼저 그리고 눈에 띄게 알린다.
+  const note = $("v-docs-note");
+  note.hidden = !data.note;
+  note.className = data.note ? "log warn" : "log";
+  note.innerHTML = data.note
+    ? `<svg class="i" aria-hidden="true"><use href="#i-circle-alert"/></svg>` +
+      `<span>${escapeHtml(data.note)}</span>`
+    : "";
 
   // 항목마다 같은 힌트가 붙으면 다섯 번 반복돼 정보가 아니라 배경 소음이 된다.
   // 전부 같은 문구일 때는 목록 아래에 한 번만 쓴다.
