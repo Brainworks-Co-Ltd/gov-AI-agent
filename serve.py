@@ -123,6 +123,9 @@ class Handler(BaseHTTPRequestHandler):
                 "ai": hyperclova_api.is_configured(),
                 "bizinfo": keys.bizinfo_key() is not None,
                 "datagokr": keys.datagokr_key() is not None,
+                # 화면이 미리 알아야 누르기 전에 알려 줄 수 있다. 눌러 보고
+                # 실패를 배우게 하면 고장난 화면처럼 보인다.
+                "readonly": READONLY,
             })
             return
 

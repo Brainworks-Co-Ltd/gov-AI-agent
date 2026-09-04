@@ -91,6 +91,41 @@ document.querySelectorAll(".tab").forEach((btn) =>
 
 // ───────────────────────────────────────────────────── 상단 연결 상태
 
+/* 공개 시연 화면(READONLY)에서는 바꾸는 조작을 미리 잠근다.
+
+   서버가 막고 있으므로 안 잠가도 안전하지만, 눌렀다가 실패하면 도구가 고장난
+   것처럼 보인다. 왜 못 누르는지를 버튼 위에 먼저 적어 둔다. */
+let writesLocked = false;
+
+function lockWrites() {
+  writesLocked = true;
+  const 잠글것 = ["btn-ingest", "btn-judge-all", "btn-save-profile",
+                  "btn-upload-past", "btn-draft-go", "btn-to-draft",
+                  "btn-rejudge", "btn-regenerate", "btn-edit-sections",
+                  "btn-chat-send", "btn-apply-sections"];
+  for (const id of 잠글것) {
+    const el = $(id);
+    if (!el) continue;
+    el.disabled = true;
+    el.dataset.tip = "공개 시연 화면이라 꺼져 있습니다";
+  }
+  // 프로필 폼은 loadProfile() 이 나중에 그리므로 지금 자식을 잠가 봐야 소용없다.
+  // inert 는 컨테이너에 걸면 나중에 생긴 자식까지 함께 막는다.
+  for (const id of ["profile-form", "chat-text", "section-list", "past-file"]) {
+    const el = $(id);
+    if (el) el.inert = true;
+  }
+  document.querySelectorAll(".panel .page-head").forEach((h) => {
+    if (h.querySelector(".log.warn")) return;
+    const p = document.createElement("p");
+    p.className = "log warn";
+    p.innerHTML = `<svg class="i" aria-hidden="true"><use href="#i-circle-alert"/></svg>` +
+      `<span>공개 시연 화면입니다. 이미 판정해 둔 결과와 신청서 초안을 보실 수 있고, ` +
+      `저장·수집·생성은 꺼져 있습니다.</span>`;
+    h.appendChild(p);
+  });
+}
+
 async function loadStatus() {
   try {
     const s = await api("/api/status");
@@ -103,6 +138,7 @@ async function loadStatus() {
     $("status").innerHTML =
       [mark(s.ai, "하이퍼클로바X"), mark(s.bizinfo, "기업마당"),
        mark(s.datagokr, "K-Startup")].join("");
+    if (s.readonly) lockWrites();
   } catch (e) {
     $("status").textContent = "상태를 확인할 수 없습니다.";
   }
@@ -323,8 +359,10 @@ let refreshTimer = null;
 let observedRefresh = false;
 
 function setRefreshButtons(running) {
-  $("btn-ingest").disabled = running;
-  $("btn-judge-all").disabled = running;
+  // 부팅 폴링이 이 함수를 부르므로, 여기서 잠금을 존중하지 않으면 lockWrites()
+  // 가 잠근 두 버튼이 곧바로 다시 풀린다.
+  $("btn-ingest").disabled = running || writesLocked;
+  $("btn-judge-all").disabled = running || writesLocked;
   // 시작하면 못 멈추는 30분짜리 일이었다. 도는 동안에만 중지를 내놓는다.
   $("btn-refresh-stop").hidden = !running;
 }
